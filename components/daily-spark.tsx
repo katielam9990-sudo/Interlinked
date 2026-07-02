@@ -61,6 +61,7 @@ export function DailySpark() {
   const [phase, setPhase] = useState<Phase>('intro')
   const [helpOpen, setHelpOpen] = useState(false)
   const [helpQuestions, setHelpQuestions] = useState(HELP_QUESTIONS)
+  const [canvasKey, setCanvasKey] = useState(0)
 
   const [isCreator] = useState(() => {
   if (typeof window === 'undefined') return false
@@ -189,13 +190,16 @@ export function DailySpark() {
                 {isCreator && (
                 <button
                   type="button"
-                  onClick={() => setEditing((v) => !v)}
+                  onClick={() => {
+                    if (editing) setCanvasKey((k) => k + 1)
+                    setEditing((v) => !v)
+                  }}
                   className="rounded-full border border-white/20 px-3 py-1 text-[0.6rem] font-medium uppercase tracking-[0.18em] text-cream/80 transition-colors hover:bg-white/10"
                 >
                   {editing ? "Done" : "Edit"}
                 </button>
                 )}
-              </div>
+              </div>  
 
               <ul className="mt-4 space-y-4">
                 {citations.map((c) => (
@@ -234,6 +238,24 @@ export function DailySpark() {
                   </li>
                 ))}
               </ul>
+              
+              {isCreator && editing && (
+                <div className="mt-4">
+                  <p className="text-[0.65rem] uppercase tracking-[0.3em] text-sage mb-2">Seeds</p>
+                  {seeds.map((seed, i) => (
+                    <input
+                      key={i}
+                      value={seed.text}
+                      onChange={(e) =>
+                        setSeeds((prev) =>
+                          prev.map((s, idx) => idx === i ? { ...s, text: e.target.value } : s)
+                        )
+                      }
+                      className="mb-2 w-full rounded-md border border-white/15 bg-white/5 px-2 py-1 text-sm text-cream/90 outline-none focus:border-spark/60"
+                    />
+                  ))}
+                </div>
+              )}
 
               {isCreator && editing && (
                 <button
