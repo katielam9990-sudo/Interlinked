@@ -28,6 +28,7 @@ export function ConstellationCanvas({ seeds }: { seeds: Seed[] }) {
     let drag_star_index = -1
     let drag_threshold_crossed = false
     let snapping_links: { from: number; to: number; created_at: number }[] = []
+    let active_input: HTMLInputElement | null = null
 
     function spawn_seeds() {
       return seeds.map((seed) => ({
@@ -258,30 +259,29 @@ export function ConstellationCanvas({ seeds }: { seeds: Seed[] }) {
     }
 
     function handleDoubleClick(event: MouseEvent) {
+      if (active_input) return  // prevents multiple inputs
+
       const rect = canvas.getBoundingClientRect()
       const click_x = event.clientX - rect.left
       const click_y = event.clientY - rect.top
 
-      // check if double click landed on an existing star
       let clicked_star_index = -1
       stars.forEach(function(s, index) {
-        if (s.is_hovered) {
-          clicked_star_index = index
-        }
+        if (s.is_hovered) clicked_star_index = index
       })
+
+      if (clicked_star_index !== -1 && stars[clicked_star_index].is_seed) return
 
       const input = document.createElement('input')
       input.type = 'text'
 
       if (clicked_star_index !== -1) {
-        if (stars[clicked_star_index].is_seed) return
         input.value = stars[clicked_star_index].text
         input.placeholder = 'Edit your thought...'
       } else {
         input.placeholder = 'Type an idea, external or internal.'
       }
 
-      // --- styling lives here ---
       input.style.position = 'fixed'
       input.style.left = event.clientX + 20 + 'px'
       input.style.top = event.clientY + 'px'
@@ -293,41 +293,48 @@ export function ConstellationCanvas({ seeds }: { seeds: Seed[] }) {
       input.style.outline = 'none'
       input.style.width = '280px'
       input.style.zIndex = '1000'
-      // --- end styling ---
 
-      document.body.appendChild(input)
-      input.focus()
-      input.select() // selects existing text so user can immediately retype
+      // prevents click+drag inside input from moving the canvas
+      input.addEventListener('mousedown', function(e) {
+        e.stopPropagation()
+      })
+
+      // closes input when user clicks outside
+      input.addEventListener('blur', function() {
+        if (document.body.contains(input)) document.body.removeChild(input)
+        active_input = null
+      })
 
       input.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') {
           const text = input.value
           if (text.trim() !== '') {
             if (clicked_star_index !== -1) {
-              // edit existing star
               stars[clicked_star_index].text = text
             } else {
-              // create new star
               const world_x = click_x + camera.x
               const world_y = click_y + camera.y
               stars.push({
-                world_x,
-                world_y,
-                screen_x: 0,
-                screen_y: 0,
+                world_x, world_y,
+                screen_x: 0, screen_y: 0,
                 radius: Math.random() * 4 + 3,
-                text,
-                glow: 15,
-                is_hovered: false,
-                is_seed: false
+                text, glow: 15,
+                is_hovered: false, is_seed: false
               })
             }
           }
-          document.body.removeChild(input)
+          if (document.body.contains(input)) document.body.removeChild(input)
+          active_input = null
         } else if (e.key === 'Escape') {
-          document.body.removeChild(input)
+          if (document.body.contains(input)) document.body.removeChild(input)
+          active_input = null
         }
       })
+
+      active_input = input
+      document.body.appendChild(input)
+      input.focus()
+      input.select()
     }
 
     function handleContextMenu(event: MouseEvent) {
@@ -390,7 +397,7 @@ export function ConstellationCanvas({ seeds }: { seeds: Seed[] }) {
       window.removeEventListener('mousemove', handleMouseMove)
       window.removeEventListener('mousedown', handleMouseDown)
       window.removeEventListener('mouseup', handleMouseUp)
-      window.removeEventListener('dblclick', handleDoubleClick)
+      canvas.removeEventListener('dblclick', handleDoubleClick)
       canvas.removeEventListener('contextmenu', handleContextMenu)
     }
   }, [])
