@@ -106,7 +106,7 @@ export function DailySpark() {
               Interlinked
             </Link>
             <span className="text-[0.65rem] uppercase tracking-[0.25em] text-sage">
-              Daily Spark
+              Daily Bridge
             </span>
           </div>
         {/* INTRO PHASE */}
