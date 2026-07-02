@@ -238,7 +238,7 @@ export function DailySpark() {
                   </li>
                 ))}
               </ul>
-              
+
               {isCreator && editing && (
                 <div className="mt-4">
                   <p className="text-[0.65rem] uppercase tracking-[0.3em] text-sage mb-2">Seeds</p>
@@ -330,9 +330,9 @@ export function DailySpark() {
       {/* Canvas */}
       <section className="relative flex-1">
       <ConstellationCanvas
-        key={phase === 'ready' ? 'active' : 'inactive'}
+        key={phase === 'ready' ? `active-${canvasKey}` : 'inactive'}
         seeds={phase === 'ready' ? seeds : []}
-        />
+      />
       </section>
     </div>
   )
