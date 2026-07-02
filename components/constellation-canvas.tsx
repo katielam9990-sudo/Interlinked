@@ -221,6 +221,7 @@ export function ConstellationCanvas({ seeds }: { seeds: Seed[] }) {
     }
 
     function handleMouseDown(event: MouseEvent) {
+      if (active_input) return
       let star_clicked = false
 
       stars.forEach(function(s, index) {
