@@ -42,6 +42,13 @@ const DEFAULT_CITATIONS: Citation[] = [
   },
 ]
 
+const HELP_QUESTIONS = [
+  "What's something you used to say with confidence that now makes you pause?",
+  "What did you think adulthood would feel like — versus how it actually does?",
+  "What's a rule you used to follow that you've quietly stopped following?",
+  "What would your past self be most surprised to see you doing now?",
+]
+
 // Deterministic seeded PRNG so server and client render identical star fields.
 
 export function DailySpark() {
@@ -52,7 +59,8 @@ export function DailySpark() {
   const [citations, setCitations] = useState<Citation[]>(DEFAULT_CITATIONS)
   const [editing, setEditing] = useState(false)
   const [phase, setPhase] = useState<Phase>('intro')
-
+  const [helpOpen, setHelpOpen] = useState(false)
+  
   const updateCitation = useCallback(
     (id: string, field: "text" | "author", value: string) => {
       setCitations((prev) =>
@@ -218,7 +226,28 @@ export function DailySpark() {
                 </button>
               )}
             </div>
-
+            <div className="mt-4">
+              <button
+                type="button"
+                onClick={() => setHelpOpen((v) => !v)}
+                className="flex items-center gap-2 text-[0.65rem] uppercase tracking-[0.25em] text-sage/70 transition-colors hover:text-sage"
+              >
+                <span>{helpOpen ? '−' : '+'}</span>
+                Need help thinking?
+              </button>
+              {helpOpen && (
+                <ul className="mt-3 space-y-2 animate-in fade-in duration-300">
+                  {HELP_QUESTIONS.map((q, i) => (
+                    <li
+                      key={i}
+                      className="border-l border-white/10 pl-3 text-xs leading-relaxed text-cream/60"
+                    >
+                      {q}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
             <p className="mt-6 text-xs leading-relaxed text-sage/80">
               Double click the sky to place an idea. Select one star, then another, to draw
               a line between them. Right click to delete stars/links. Double click a star to edit.
