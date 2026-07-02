@@ -60,7 +60,13 @@ export function DailySpark() {
   const [editing, setEditing] = useState(false)
   const [phase, setPhase] = useState<Phase>('intro')
   const [helpOpen, setHelpOpen] = useState(false)
-  
+  const [helpQuestions, setHelpQuestions] = useState(HELP_QUESTIONS)
+
+  const [isCreator] = useState(() => {
+  if (typeof window === 'undefined') return false
+  return new URLSearchParams(window.location.search).get('creator') === 'true'
+  })
+
   const updateCitation = useCallback(
     (id: string, field: "text" | "author", value: string) => {
       setCitations((prev) =>
@@ -169,6 +175,7 @@ export function DailySpark() {
             <div className="mt-8 flex-1">
               <div className="flex items-center justify-between">
                 <p className="text-[0.65rem] uppercase tracking-[0.3em] text-sage">Citations</p>
+                {isCreator && (
                 <button
                   type="button"
                   onClick={() => setEditing((v) => !v)}
@@ -176,12 +183,13 @@ export function DailySpark() {
                 >
                   {editing ? "Done" : "Edit"}
                 </button>
+                )}
               </div>
 
               <ul className="mt-4 space-y-4">
                 {citations.map((c) => (
                   <li key={c.id} className="border-l-2 border-olive-deep pl-4">
-                    {editing ? (
+                    {isCreator && editing ? (
                       <div className="space-y-2">
                         <textarea
                           value={c.text}
@@ -216,7 +224,7 @@ export function DailySpark() {
                 ))}
               </ul>
 
-              {editing && (
+              {isCreator && editing && (
                 <button
                   type="button"
                   onClick={addCitation}
@@ -237,15 +245,45 @@ export function DailySpark() {
               </button>
               {helpOpen && (
                 <ul className="mt-3 space-y-2 animate-in fade-in duration-300">
-                  {HELP_QUESTIONS.map((q, i) => (
-                    <li
-                      key={i}
-                      className="border-l border-white/10 pl-3 text-xs leading-relaxed text-cream/60"
-                    >
-                      {q}
+                  {helpQuestions.map((q, i) => (
+                    <li key={i} className="border-l border-white/10 pl-3">
+                      {isCreator && editing ? (
+                        <div className="flex gap-2">
+                          <input
+                            value={q}
+                            onChange={(e) =>
+                              setHelpQuestions((prev) =>
+                                prev.map((item, idx) => (idx === i ? e.target.value : item))
+                              )
+                            }
+                            className="w-full rounded-md border border-white/15 bg-white/5 px-2 py-1 text-xs text-cream/90 outline-none focus:border-spark/60"
+                          />
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setHelpQuestions((prev) => prev.filter((_, idx) => idx !== i))
+                            }
+                            className="text-[0.65rem] uppercase tracking-[0.15em] text-clay transition-colors hover:text-terracotta-soft"
+                          >
+                            ✕
+                          </button>
+                        </div>
+                      ) : (
+                        <p className="text-xs leading-relaxed text-cream/60">{q}</p>
+                      )}
                     </li>
                   ))}
                 </ul>
+              )}
+
+              {isCreator && editing && helpOpen && (
+                <button
+                  type="button"
+                  onClick={() => setHelpQuestions((prev) => [...prev, "New question..."])}
+                  className="mt-2 w-full rounded-md border border-dashed border-white/20 py-1.5 text-xs uppercase tracking-[0.18em] text-cream/70 transition-colors hover:bg-white/5"
+                >
+                  + Add question
+                </button>
               )}
             </div>
             <p className="mt-6 text-xs leading-relaxed text-sage/80">
