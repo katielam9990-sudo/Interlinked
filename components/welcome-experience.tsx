@@ -215,7 +215,7 @@ export function WelcomeExperience() {
           Interlinked
         </span>
         <Link
-          href="/daily-spark"
+          href="/daily-bridge"
           className="rounded-full border px-4 py-1.5 text-xs font-medium uppercase tracking-[0.18em] transition-colors duration-300 hover:bg-white/10"
           style={{ color: textColor, borderColor: textColor }}
         >
@@ -284,7 +284,7 @@ export function WelcomeExperience() {
             </p>
             {i === SECTIONS.length - 1 && (
               <Link
-                href="/daily-spark"
+                href="/daily-bridge"
                 className="group mt-12 inline-flex items-center gap-3 rounded-full bg-[#b8d8b0] px-8 py-4 text-sm font-semibold uppercase tracking-[0.18em] text-[#1a1e1a] shadow-[0_0_30px_rgba(184,216,176,0.35)] transition-all hover:shadow-[0_0_45px_rgba(184,216,176,0.6)]"
               >
                 Enter Today's Bridge
