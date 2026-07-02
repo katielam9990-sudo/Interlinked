@@ -301,8 +301,13 @@ export function ConstellationCanvas({ seeds }: { seeds: Seed[] }) {
 
       // closes input when user clicks outside
       input.addEventListener('blur', function() {
-        if (document.body.contains(input)) document.body.removeChild(input)
-        active_input = null
+        if (input.value.trim() === '') {
+          if (document.body.contains(input)) document.body.removeChild(input)
+          active_input = null
+        } else {
+          // has text — refocus so it stays open
+          requestAnimationFrame(() => input.focus())
+        }
       })
 
       input.addEventListener('keydown', function(e) {
