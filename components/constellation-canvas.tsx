@@ -380,7 +380,7 @@ export function ConstellationCanvas({ seeds }: { seeds: Seed[] }) {
     window.addEventListener('mousemove', handleMouseMove)
     window.addEventListener('mousedown', handleMouseDown)
     window.addEventListener('mouseup', handleMouseUp)
-    window.addEventListener('dblclick', handleDoubleClick)
+    canvas.addEventListener('dblclick', handleDoubleClick)
     canvas.addEventListener('contextmenu', handleContextMenu)
     animationId = requestAnimationFrame(main_loop)
 
