@@ -97,6 +97,17 @@ export function DailySpark() {
             "radial-gradient(120% 100% at 50% 0%, #232a23 0%, #1a1e1a 45%, #141714 100%)",
         }}
       >
+          <div className="flex items-center justify-between">
+            <Link
+              href="/"
+              className="font-serif text-xl font-medium text-cream/90 transition-colors hover:text-cream"
+            >
+              Interlinked
+            </Link>
+            <span className="text-[0.65rem] uppercase tracking-[0.25em] text-sage">
+              Daily Spark
+            </span>
+          </div>
         {/* INTRO PHASE */}
         {phase === 'intro' && (
           <div className="flex flex-1 flex-col items-center justify-center gap-5 text-center animate-in fade-in duration-700">
