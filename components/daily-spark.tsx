@@ -27,6 +27,8 @@ type Citation = {
   author: string
 }
 
+type Phase = 'intro' | 'prompt' | 'ready'
+
 const DEFAULT_CITATIONS: Citation[] = [
   {
     id: "c1",
@@ -49,7 +51,7 @@ export function DailySpark() {
   const [seeds, setSeeds] = useState<Seed[]>(DEFAULT_SEEDS)
   const [citations, setCitations] = useState<Citation[]>(DEFAULT_CITATIONS)
   const [editing, setEditing] = useState(false)
-
+  const [phase, setPhase] = useState<Phase>('intro')
 
   const updateCitation = useCallback(
     (id: string, field: "text" | "author", value: string) => {
@@ -81,82 +83,38 @@ export function DailySpark() {
             "radial-gradient(120% 100% at 50% 0%, #232a23 0%, #1a1e1a 45%, #141714 100%)",
         }}
       >
-        <div className="flex items-center justify-between">
-          <Link
-            href="/"
-            className="font-serif text-xl font-medium text-cream/90 transition-colors hover:text-cream"
-          >
-            Interlinked
-          </Link>
-          <span className="text-[0.65rem] uppercase tracking-[0.25em] text-sage">
-            Daily Spark
-          </span>
-        </div>
+        {/* INTRO PHASE */}
+        {phase === 'intro' && (
+          <div className="flex flex-1 flex-col items-center justify-center gap-5 text-center animate-in fade-in duration-700">
+            <p className="text-[0.65rem] uppercase tracking-[0.3em] text-sage">
+              A new bridge awaits
+            </p>
+            <h2 className="max-w-xs text-balance font-serif text-2xl font-light leading-snug text-cream">
+              Today&apos;s spark is ready
+            </h2>
+            <button
+              type="button"
+              onClick={() => setPhase('prompt')}
+              className="group mt-4 flex items-center gap-2 text-sm font-medium uppercase tracking-[0.18em] text-spark transition-colors hover:text-cream"
+            >
+              Discover today&apos;s prompt
+              <span className="transition-transform group-hover:translate-x-1">→</span>
+            </button>
+          </div>
+        )}
 
-        <div className="mt-8">
-          <p className="text-[0.65rem] uppercase tracking-[0.3em] text-terracotta-soft">
-            Today&apos;s prompt
-          </p>
-          {editing ? (
-            <textarea
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              rows={4}
-              className="mt-3 w-full resize-none rounded-md border border-white/15 bg-white/5 p-3 font-serif text-xl leading-snug text-cream outline-none focus:border-spark/60"
-            />
-          ) : (
+        {/* PROMPT PHASE */}
+        {phase === 'prompt' && (
+          <div className="mt-8 flex flex-1 flex-col animate-in fade-in slide-in-from-bottom-2 duration-700">
+            <p className="text-[0.65rem] uppercase tracking-[0.3em] text-terracotta-soft">
+              Today&apos;s prompt
+            </p>
             <h1 className="mt-3 text-balance font-serif text-2xl font-light leading-snug text-cream">
               {prompt}
             </h1>
-          )}
-        </div>
-
-        <div className="mt-8 flex-1">
-          <div className="flex items-center justify-between">
-            <p className="text-[0.65rem] uppercase tracking-[0.3em] text-sage">
-              Citations
-            </p>
-            <button
-              type="button"
-              onClick={() => setEditing((v) => !v)}
-              className="rounded-full border border-white/20 px-3 py-1 text-[0.6rem] font-medium uppercase tracking-[0.18em] text-cream/80 transition-colors hover:bg-white/10"
-            >
-              {editing ? "Done" : "Edit"}
-            </button>
-          </div>
-
-          <ul className="mt-4 space-y-4">
-            {citations.map((c) => (
-              <li
-                key={c.id}
-                className="border-l-2 border-olive-deep pl-4"
-              >
-                {editing ? (
-                  <div className="space-y-2">
-                    <textarea
-                      value={c.text}
-                      onChange={(e) =>
-                        updateCitation(c.id, "text", e.target.value)
-                      }
-                      rows={2}
-                      className="w-full resize-none rounded-md border border-white/15 bg-white/5 p-2 text-sm leading-relaxed text-cream/90 outline-none focus:border-spark/60"
-                    />
-                    <input
-                      value={c.author}
-                      onChange={(e) =>
-                        updateCitation(c.id, "author", e.target.value)
-                      }
-                      className="w-full rounded-md border border-white/15 bg-white/5 px-2 py-1 text-xs italic text-sage outline-none focus:border-spark/60"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeCitation(c.id)}
-                      className="text-[0.65rem] uppercase tracking-[0.15em] text-clay transition-colors hover:text-terracotta-soft"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ) : (
+            <ul className="mt-8 space-y-4">
+              {citations.map((c) => (
+                <li key={c.id} className="border-l-2 border-olive-deep pl-4">
                   <figure>
                     <blockquote className="text-pretty text-sm leading-relaxed text-cream/85">
                       {c.text}
@@ -165,31 +123,116 @@ export function DailySpark() {
                       &mdash; {c.author}
                     </figcaption>
                   </figure>
-                )}
-              </li>
-            ))}
-          </ul>
-
-          {editing && (
+                </li>
+              ))}
+            </ul>
             <button
               type="button"
-              onClick={addCitation}
-              className="mt-4 w-full rounded-md border border-dashed border-white/20 py-2 text-xs uppercase tracking-[0.18em] text-cream/70 transition-colors hover:bg-white/5"
+              onClick={() => setPhase('ready')}
+              className="group mt-auto flex items-center gap-2 text-sm font-medium uppercase tracking-[0.18em] text-spark transition-colors hover:text-cream"
             >
-              + Add citation
+              Place your first star
+              <span className="transition-transform group-hover:translate-x-1">→</span>
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
-        <p className="mt-6 text-xs leading-relaxed text-sage/80">
-          Double click the sky to place an idea. Select one star, then another, to draw
-          a line between them. Right click to delete stars/links. Double click a star to edit.
-        </p>
+        {/* READY PHASE */}
+        {phase === 'ready' && (
+          <div className="mt-8 flex flex-1 flex-col animate-in fade-in duration-500">
+            <div>
+              <p className="text-[0.65rem] uppercase tracking-[0.3em] text-terracotta-soft">
+                Today&apos;s prompt
+              </p>
+              {editing ? (
+                <textarea
+                  value={prompt}
+                  onChange={(e) => setPrompt(e.target.value)}
+                  rows={4}
+                  className="mt-3 w-full resize-none rounded-md border border-white/15 bg-white/5 p-3 font-serif text-xl leading-snug text-cream outline-none focus:border-spark/60"
+                />
+              ) : (
+                <h1 className="mt-3 text-balance font-serif text-2xl font-light leading-snug text-cream">
+                  {prompt}
+                </h1>
+              )}
+            </div>
+
+            <div className="mt-8 flex-1">
+              <div className="flex items-center justify-between">
+                <p className="text-[0.65rem] uppercase tracking-[0.3em] text-sage">Citations</p>
+                <button
+                  type="button"
+                  onClick={() => setEditing((v) => !v)}
+                  className="rounded-full border border-white/20 px-3 py-1 text-[0.6rem] font-medium uppercase tracking-[0.18em] text-cream/80 transition-colors hover:bg-white/10"
+                >
+                  {editing ? "Done" : "Edit"}
+                </button>
+              </div>
+
+              <ul className="mt-4 space-y-4">
+                {citations.map((c) => (
+                  <li key={c.id} className="border-l-2 border-olive-deep pl-4">
+                    {editing ? (
+                      <div className="space-y-2">
+                        <textarea
+                          value={c.text}
+                          onChange={(e) => updateCitation(c.id, "text", e.target.value)}
+                          rows={2}
+                          className="w-full resize-none rounded-md border border-white/15 bg-white/5 p-2 text-sm leading-relaxed text-cream/90 outline-none focus:border-spark/60"
+                        />
+                        <input
+                          value={c.author}
+                          onChange={(e) => updateCitation(c.id, "author", e.target.value)}
+                          className="w-full rounded-md border border-white/15 bg-white/5 px-2 py-1 text-xs italic text-sage outline-none focus:border-spark/60"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => removeCitation(c.id)}
+                          className="text-[0.65rem] uppercase tracking-[0.15em] text-clay transition-colors hover:text-terracotta-soft"
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    ) : (
+                      <figure>
+                        <blockquote className="text-pretty text-sm leading-relaxed text-cream/85">
+                          {c.text}
+                        </blockquote>
+                        <figcaption className="mt-1.5 font-serif text-sm italic text-sage">
+                          &mdash; {c.author}
+                        </figcaption>
+                      </figure>
+                    )}
+                  </li>
+                ))}
+              </ul>
+
+              {editing && (
+                <button
+                  type="button"
+                  onClick={addCitation}
+                  className="mt-4 w-full rounded-md border border-dashed border-white/20 py-2 text-xs uppercase tracking-[0.18em] text-cream/70 transition-colors hover:bg-white/5"
+                >
+                  + Add citation
+                </button>
+              )}
+            </div>
+
+            <p className="mt-6 text-xs leading-relaxed text-sage/80">
+              Double click the sky to place an idea. Select one star, then another, to draw
+              a line between them. Right click to delete stars/links. Double click a star to edit.
+            </p>
+          </div>
+        )}
       </aside>
 
       {/* Canvas */}
       <section className="relative flex-1">
-        <ConstellationCanvas seeds={seeds}/>
+      <ConstellationCanvas
+        key={phase === 'ready' ? 'active' : 'inactive'}
+        seeds={phase === 'ready' ? seeds : []}
+        />
       </section>
     </div>
   )

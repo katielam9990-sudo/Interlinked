@@ -31,6 +31,7 @@ export function ConstellationCanvas({ seeds }: { seeds: Seed[] }) {
     let active_input: HTMLInputElement | null = null
 
     function spawn_seeds() {
+      const now = performance.now()
       return seeds.map((seed) => ({
         world_x: seed.x,
         world_y: seed.y,
@@ -40,7 +41,8 @@ export function ConstellationCanvas({ seeds }: { seeds: Seed[] }) {
         text: seed.text,
         glow: 15,
         is_hovered: false,
-        is_seed: true
+        is_seed: true,
+        birth_time: now
       }))
     }
 
@@ -80,7 +82,10 @@ export function ConstellationCanvas({ seeds }: { seeds: Seed[] }) {
 
     function draw_star(star: typeof stars[0]) {
       const is_selected = active_link !== null && stars[active_link.from] === star
+      const age = performance.now() - star.birth_time
+      const entrance_opacity = Math.min(1, age / 700)
 
+      ctx.globalAlpha = entrance_opacity
       ctx.fillStyle = star.is_seed ? "#f5c842" : "#e4eade"
       ctx.shadowColor = star.is_seed ? "#f5c842" : "#e8e4db"
       ctx.shadowBlur = is_selected ? 35 : star.glow
@@ -107,6 +112,8 @@ export function ConstellationCanvas({ seeds }: { seeds: Seed[] }) {
         ctx.fillStyle = star.is_seed ? "#f5c842" : "#e8e4db"
         ctx.fillText(star.text, star.screen_x + display_radius + 10, star.screen_y + 5)
       }
+
+      ctx.globalAlpha = 1
     }
 
     function draw_link(link: { from: number; to: number | null }) {
@@ -324,7 +331,9 @@ export function ConstellationCanvas({ seeds }: { seeds: Seed[] }) {
                 screen_x: 0, screen_y: 0,
                 radius: Math.random() * 4 + 3,
                 text, glow: 15,
-                is_hovered: false, is_seed: false
+                is_hovered: false, 
+                is_seed: false,
+                birth_time: performance.now()
               })
             }
           }
