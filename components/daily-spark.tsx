@@ -27,6 +27,26 @@ type Citation = {
   author: string
 }
 
+type SocialLink = {
+  id: string
+  label: string
+  url: string
+}
+
+type CreatorProfile = {
+  name: string
+  tagline: string
+  imageUrl: string
+  links: SocialLink[]
+}
+
+const DEFAULT_PROFILE: CreatorProfile = {
+  name: "",
+  tagline: "",
+  imageUrl: "",
+  links: []
+}
+
 type Phase = 'intro' | 'prompt' | 'ready'
 
 const DEFAULT_CITATIONS: Citation[] = [
@@ -62,6 +82,7 @@ export function DailySpark() {
   const [helpOpen, setHelpOpen] = useState(false)
   const [helpQuestions, setHelpQuestions] = useState(HELP_QUESTIONS)
   const [canvasKey, setCanvasKey] = useState(0)
+  const [profile, setProfile] = useState<CreatorProfile>(DEFAULT_PROFILE)
 
   const [isCreator] = useState(() => {
   if (typeof window === 'undefined') return false
@@ -92,7 +113,7 @@ export function DailySpark() {
     <div className="flex min-h-screen flex-col bg-night text-cream lg:flex-row">
       {/* Sidebar */}
       <aside
-        className="flex w-full flex-col border-b border-white/10 px-7 py-7 lg:max-w-sm lg:border-b-0 lg:border-r"
+        className="flex w-full flex-col border-b border-white/10 px-7 py-7 lg:max-w-sm lg:border-b-0 lg:border-r lg:h-screen lg:overflow-y-auto"
         style={{
           background:
             "radial-gradient(120% 100% at 50% 0%, #232a23 0%, #1a1e1a 45%, #141714 100%)",
@@ -182,6 +203,7 @@ export function DailySpark() {
                   {prompt}
                 </h1>
               )}
+              
             </div>
 
             <div className="mt-8 flex-1">
@@ -200,7 +222,7 @@ export function DailySpark() {
                 </button>
                 )}
               </div>  
-
+              
               <ul className="mt-4 space-y-4">
                 {citations.map((c) => (
                   <li key={c.id} className="border-l-2 border-olive-deep pl-4">
@@ -319,6 +341,103 @@ export function DailySpark() {
                 </button>
               )}
             </div>
+            {/* Creator Spotlight */}
+            {(profile.name || (isCreator && editing)) && (
+              <div className="mt-8 border-t border-white/10 pt-6">
+                {isCreator && editing ? (
+                  <div className="space-y-3">
+                    <p className="text-[0.65rem] uppercase tracking-[0.3em] text-sage">Creator Profile</p>
+                    <input
+                      value={profile.imageUrl}
+                      onChange={(e) => setProfile((p) => ({ ...p, imageUrl: e.target.value }))}
+                      placeholder="Profile image URL"
+                      className="w-full rounded-md border border-white/15 bg-white/5 px-2 py-1 text-xs text-cream/90 outline-none focus:border-spark/60"
+                    />
+                    <input
+                      value={profile.name}
+                      onChange={(e) => setProfile((p) => ({ ...p, name: e.target.value }))}
+                      placeholder="Your name"
+                      className="w-full rounded-md border border-white/15 bg-white/5 px-2 py-1 text-sm text-cream/90 outline-none focus:border-spark/60"
+                    />
+                    <input
+                      value={profile.tagline}
+                      onChange={(e) => setProfile((p) => ({ ...p, tagline: e.target.value }))}
+                      placeholder="One line about you"
+                      className="w-full rounded-md border border-white/15 bg-white/5 px-2 py-1 text-xs text-cream/90 outline-none focus:border-spark/60"
+                    />
+                    {profile.links.map((link) => (
+                      <div key={link.id} className="flex gap-2">
+                        <input
+                          value={link.label}
+                          onChange={(e) => setProfile((p) => ({
+                            ...p,
+                            links: p.links.map((l) => l.id === link.id ? { ...l, label: e.target.value } : l)
+                          }))}
+                          placeholder="Label"
+                          className="w-1/3 rounded-md border border-white/15 bg-white/5 px-2 py-1 text-xs text-cream/90 outline-none focus:border-spark/60"
+                        />
+                        <input
+                          value={link.url}
+                          onChange={(e) => setProfile((p) => ({
+                            ...p,
+                            links: p.links.map((l) => l.id === link.id ? { ...l, url: e.target.value } : l)
+                          }))}
+                          placeholder="URL"
+                          className="flex-1 rounded-md border border-white/15 bg-white/5 px-2 py-1 text-xs text-cream/90 outline-none focus:border-spark/60"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setProfile((p) => ({ ...p, links: p.links.filter((l) => l.id !== link.id) }))}
+                          className="text-[0.65rem] text-clay hover:text-terracotta-soft"
+                        >✕</button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => setProfile((p) => ({ ...p, links: [...p.links, { id: crypto.randomUUID(), label: "", url: "" }] }))}
+                      className="w-full rounded-md border border-dashed border-white/20 py-1.5 text-xs uppercase tracking-[0.18em] text-cream/70 transition-colors hover:bg-white/5"
+                    >
+                      + Add link
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-start gap-3">
+                    {profile.imageUrl ? (
+                      <img
+                        src={profile.imageUrl}
+                        alt={profile.name}
+                        className="h-12 w-12 flex-shrink-0 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-olive-deep">
+                        <span className="font-serif text-lg text-cream/70">{profile.name[0]}</span>
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="font-serif text-base text-cream">{profile.name}</p>
+                      {profile.tagline && (
+                        <p className="mt-0.5 text-xs text-sage/80">{profile.tagline}</p>
+                      )}
+                      {profile.links.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-3">
+                          {profile.links.map((link) => (
+                            <a
+                              key={link.id}
+                              href={link.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[0.65rem] uppercase tracking-[0.15em] text-spark/80 transition-colors hover:text-spark"
+                            >
+                              {link.label}
+                            </a>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             <p className="mt-6 text-xs leading-relaxed text-sage/80">
               Double click the sky to place an idea. Select one star, then another, to draw
               a line between them. Right click to delete stars/links. Double click a star to edit.
