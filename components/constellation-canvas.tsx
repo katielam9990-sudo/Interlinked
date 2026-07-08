@@ -252,6 +252,7 @@ function StarNode({ data, id }: NodeProps<InterlinkedNode>) {
         <input
           autoFocus value={data.text}
           onChange={onChange} onKeyDown={onKeyDown} onBlur={onBlur}
+          onMouseDown={(e) => e.stopPropagation()}  
           placeholder="Type an idea..."
           style={{
             marginTop: 8, background: 'transparent', border: 'none',
@@ -362,6 +363,7 @@ function CanvasInner() {
 
   // Click node → two-click linking: first click selects source, second click completes edge
   const onNodeClick = useCallback((_: React.MouseEvent, node: InterlinkedNode) => {
+    if (node.data.justCreated) return
     if (pendingSourceId === null) {
       setPendingSourceId(node.id)
       setNodes(nds => nds.map(n =>
