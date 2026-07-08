@@ -431,10 +431,13 @@ function CanvasInner() {
       const pendingNode = nodes.find(n => n.id === pendingSourceId)
       const pendingDepth = getDepth(pendingSourceId!, nodes, edges)
       const clickedDepth = getDepth(node.id, nodes, edges)
+      const pendingHasSeed = getSeedId(pendingSourceId!, nodes, edges) !== null
+      const clickedHasSeed = getSeedId(node.id, nodes, edges) !== null
 
       const shouldFlip =
         (node.data.nodeType === 'seed' && pendingNode?.data.nodeType !== 'seed') ||
-        (node.data.nodeType !== 'seed' && pendingNode?.data.nodeType !== 'seed' && pendingDepth > clickedDepth)
+        (!pendingHasSeed && clickedHasSeed) ||
+        (pendingHasSeed && clickedHasSeed && pendingDepth > clickedDepth)
         
       const finalSource = shouldFlip ? node.id : pendingSourceId
       const finalTarget = shouldFlip ? pendingSourceId : node.id
