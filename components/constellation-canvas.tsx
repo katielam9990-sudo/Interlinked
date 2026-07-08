@@ -458,6 +458,19 @@ function CanvasInner() {
   const pendingSourceNode = nodes.find(n => n.id === pendingSourceId)
   const pendingColor = pendingSourceNode ? getNodeColor(pendingSourceNode.data) : '#e4eade'
 
+  // Decides canvas prompt depending on seed states and star depths
+  const canvasPrompt: string | null = (() => {
+    const seed1 = nodes.find(n => n.id === 'seed1')
+    const seed2 = nodes.find(n => n.id === 'seed2')
+    if (!seed1?.data.activated || !seed2?.data.activated) return null
+    const hasDepth2 = nodes.some(n =>
+      n.data.nodeType === 'star' &&
+      getDepth(n.id, nodes, edges) >= 2
+    )
+    if (hasDepth2) return "what connects these two sides?"
+    return "go deeper into your thoughts"
+  })()
+
   return (
     <div
       ref={containerRef}
@@ -487,6 +500,18 @@ function CanvasInner() {
         }}
       />
 
+      {canvasPrompt && (
+        <div style={{
+          position: 'absolute', top: '10%', left: '50%', transform: 'translateX(-50%)',
+          color: '#e4eade', opacity: 0.45, fontSize: '13px',
+          fontFamily: "'Plus Jakarta Sans', sans-serif",
+          whiteSpace: 'nowrap', pointerEvents: 'none',
+          letterSpacing: '0.04em',
+        }}>
+          {canvasPrompt}
+        </div>
+      )}
+      
       {/* SVG overlay — lives on top of React Flow, pointer-events disabled so it doesn't block interaction */}
       <svg
         style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 10 }}
