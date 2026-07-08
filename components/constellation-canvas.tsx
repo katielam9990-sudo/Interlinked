@@ -81,13 +81,13 @@ function getNodeColor(data: InterlinkedNodeData): string {
     return data.seedId === 'seed1' ? '#f5c842' : '#8faa8b'
   }
   if (data.seedId === 'seed1') {
-    if (data.depth <= 1) return '#f3cd86'
-    if (data.depth === 2) return '#f0dbac'
+    if (data.depth <= 1) return '#fde4b7'
+    if (data.depth === 2) return '#f8e8c6'
     return '#ede9e0'
   }
   if (data.seedId === 'seed2') {
-    if (data.depth <= 1) return '#a0b99a'
-    if (data.depth === 2) return '#ccefc7'
+    if (data.depth <= 1) return '#d4f4cc'
+    if (data.depth === 2) return '#dbfdd5'
     return '#e4e8e2'
   }
   return '#ede9e0'
