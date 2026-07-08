@@ -221,7 +221,7 @@ function StarNode({ data, id }: NodeProps<InterlinkedNode>) {
 
   const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && data.isValid) {
-      setNodes(nds => nds.map(n => n.id === id ? { ...n, data: { ...n.data, draggable: true, justCreated: false } } : n))
+      setNodes(nds => nds.map(n => n.id === id ? { ...n, draggable: true data: { ...n.data, justCreated: false } } : n))
     } else if (e.key === 'Escape') {
       setNodes(nds => nds.filter(n => n.id !== id))
     }
