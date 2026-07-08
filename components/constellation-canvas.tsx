@@ -266,7 +266,8 @@ function StarNode({ data, id }: NodeProps<InterlinkedNode>) {
   }, [id, data.isValid, setNodes])
 
   const color = getNodeColor(data)
-  const glowAmount = data.glowState === 'none' ? 5 : data.glowState === 'soft' ? 15 : 30
+  const baseGlow = data.glowState === 'none' ? 5 : data.glowState === 'soft' ? 15 : 30
+  const glowAmount = hovered ? baseGlow + 10 : baseGlow
   const opacity = data.isValid ? 1 : 0.4
 
   if (data.justCreated) {
