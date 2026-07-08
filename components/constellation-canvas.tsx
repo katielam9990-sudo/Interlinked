@@ -101,6 +101,7 @@ const initialEdges: InterlinkedEdge[] = []
 function CanvasInner() {
   const [nodes, setNodes, onNodesChange] = useNodesState<InterlinkedNode>(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState<InterlinkedEdge>(initialEdges)
+  const [pendingSourceId, setPendingSourceId] = useState<string | null>(null)
   const { screenToFlowPosition } = useReactFlow()
 
   
@@ -135,7 +136,36 @@ function CanvasInner() {
 
     setNodes(nds => [...nds, newNode])
   }, [screenToFlowPosition, setNodes])
-  
+
+  const onNodeClick = useCallback((_: React.MouseEvent, node: InterlinkedNode) => {
+    if (pendingSourceId === null) {
+      // First click — mark this as source
+      setPendingSourceId(node.id)
+      setNodes(nds => nds.map(n =>
+        n.id === node.id ? { ...n, data: { ...n.data, selectedForBridge: true } } : n
+      ))
+    } else if (pendingSourceId === node.id) {
+      // Clicked same node again — cancel
+      setPendingSourceId(null)
+      setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, selectedForBridge: false } })))
+    } else {
+      // Second click — create the edge
+      setEdges(eds => [...eds, {
+        id: `${pendingSourceId}-${node.id}`,
+        source: pendingSourceId,
+        target: node.id,
+      }])
+      setPendingSourceId(null)
+      setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, selectedForBridge: false } })))
+    }
+  }, [pendingSourceId, setNodes, setEdges])
+
+  const onPaneClick = useCallback(() => {
+    if (pendingSourceId === null) return
+    setPendingSourceId(null)
+    setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, selectedForBridge: false } })))
+  }, [pendingSourceId, setNodes])
+    
   useEffect(() => {
     setNodes(nds => nds.map(node => {
       if (node.data.nodeType === 'seed') {
@@ -171,12 +201,17 @@ function CanvasInner() {
     <div style={{ width: '100%', height: '100%' }} onDoubleClick={onDoubleClick}>
       <ReactFlow
         zoomOnDoubleClick={false}
+        defaultEdgeOptions={{ type: 'straight' }}
+        nodesConnectable={false}
+        elementsSelectable={false}
         nodeOrigin={[0.5,0.5]}
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onNodeClick={onNodeClick}
+        onPaneClick={onPaneClick}
         nodeTypes={nodeTypes}
       />
     </div>
