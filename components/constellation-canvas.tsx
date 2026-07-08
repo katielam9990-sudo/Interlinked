@@ -1,416 +1,93 @@
 "use client"
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   ReactFlow,
   ReactFlowProvider,
   useNodesState,
   useEdgesState,
   useReactFlow,
-  addEdge,
   Handle,
   Position,
-  Background,
-  BackgroundVariant,
   type Node,
   type Edge,
-  type Connection,
   type NodeTypes,
   type NodeProps,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
 
+// ─── Types ────────────────────────────────────────────────────────────────────
+
 type InterlinkedNodeData = {
   text: string
   nodeType: 'seed' | 'star' | 'bridge'
-  
-  // Ownership
   seedId: 'seed1' | 'seed2' | null
   depth: number
   glowState: 'none' | 'soft' | 'bright'
-
-  // Validation
   charCount: number
-  isValid: boolean // charCount >= 25 for star, >= 50 for bridge
-
-  // Seed-specific and Bridge phase
+  isValid: boolean
   subtreeCount: number
-  activated: boolean // subtreeCount >= 2
+  activated: boolean
   visible: boolean
   selectedForBridge: boolean
   justCreated: boolean
   [key: string]: unknown
 }
 
-type CanvasMechanicsState = {
-  seed1Activated: boolean
-  seed2Activated: boolean
-  bothHaveDepth2: boolean
-  bridgePhaseEligible: boolean
-  bridgeComplete: boolean
-  centerPrompt: 'none' | 'go-deeper' | 'what-connects'
-}
-
 type InterlinkedNode = Node<InterlinkedNodeData>
 type InterlinkedEdge = Edge<{ dissolving?: boolean }>
+type SnappingEdge = { sourceId: string; targetId: string; createdAt: number }
+
+
+// ─── Initial data ─────────────────────────────────────────────────────────────
 
 const initialNodes: InterlinkedNode[] = [
   {
-    id: 'seed1',
-    type: 'seed',
-    position: { x: 200, y: 300 },
+    id: 'seed1', type: 'seed', position: { x: 200, y: 300 },
     data: {
-      text: "A belief you've released...",
-      nodeType: 'seed',
-      seedId: 'seed1',
-      depth: 0,
-      glowState: 'none',
-      charCount: 0,
-      isValid: false,
-      subtreeCount: 0,
-      activated: false,
-      visible: true,
-      selectedForBridge: false,
-      justCreated: false,
+      text: "A belief you've released...", nodeType: 'seed', seedId: 'seed1',
+      depth: 0, glowState: 'none', charCount: 0, isValid: false,
+      subtreeCount: 0, activated: false, visible: true,
+      selectedForBridge: false, justCreated: false,
     }
   },
   {
-    id: 'seed2',
-    type: 'seed',
-    position: { x: 600, y: 300 },
+    id: 'seed2', type: 'seed', position: { x: 600, y: 300 },
     data: {
-      text: "What replaced it...",
-      nodeType: 'seed',
-      seedId: 'seed2',
-      depth: 0,
-      glowState: 'none',
-      charCount: 0,
-      isValid: false,
-      subtreeCount: 0,
-      activated: false,
-      visible: false,
-      selectedForBridge: false,
-      justCreated: false,
+      text: "What replaced it...", nodeType: 'seed', seedId: 'seed2',
+      depth: 0, glowState: 'none', charCount: 0, isValid: false,
+      subtreeCount: 0, activated: false, visible: false,
+      selectedForBridge: false, justCreated: false,
     }
   }
 ]
 
 const initialEdges: InterlinkedEdge[] = []
 
-function CanvasInner() {
-  const [nodes, setNodes, onNodesChange] = useNodesState<InterlinkedNode>(initialNodes)
-  const [edges, setEdges, onEdgesChange] = useEdgesState<InterlinkedEdge>(initialEdges)
-  const [pendingSourceId, setPendingSourceId] = useState<string | null>(null)
-  const { screenToFlowPosition } = useReactFlow()
 
-  
-  const onConnect = useCallback((connection: Connection) => {
-    setEdges(eds => addEdge(connection, eds))
-  }, [setEdges])
-
-  const onDoubleClick = useCallback((e: React.MouseEvent) => {
-    if (!(e.target as Element).classList.contains('react-flow__pane')) return
-
-    const position = screenToFlowPosition({ x: e.clientX, y: e.clientY })
-
-    const newNode: InterlinkedNode = {
-      id: uid(),
-      type: 'star',
-      position,
-      data: {
-        text: '',
-        nodeType: 'star',
-        seedId: null,
-        depth: 1,
-        glowState: 'none',
-        charCount: 0,
-        isValid: false,
-        subtreeCount: 0,
-        activated: false,
-        visible: true,
-        selectedForBridge: false,
-        justCreated: true,
-      }
-    }
-
-    setNodes(nds => [...nds, newNode])
-  }, [screenToFlowPosition, setNodes])
-
-  const onNodeClick = useCallback((_: React.MouseEvent, node: InterlinkedNode) => {
-    if (pendingSourceId === null) {
-      // First click — mark this as source
-      setPendingSourceId(node.id)
-      setNodes(nds => nds.map(n =>
-        n.id === node.id ? { ...n, data: { ...n.data, selectedForBridge: true } } : n
-      ))
-    } else if (pendingSourceId === node.id) {
-      // Clicked same node again — cancel
-      setPendingSourceId(null)
-      setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, selectedForBridge: false } })))
-    } else {
-      // Second click — create the edge
-      setEdges(eds => [...eds, {
-        id: `${pendingSourceId}-${node.id}`,
-        source: pendingSourceId,
-        target: node.id,
-      }])
-      setPendingSourceId(null)
-      setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, selectedForBridge: false } })))
-    }
-  }, [pendingSourceId, setNodes, setEdges])
-
-  const onPaneClick = useCallback(() => {
-    if (pendingSourceId === null) return
-    setPendingSourceId(null)
-    setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, selectedForBridge: false } })))
-  }, [pendingSourceId, setNodes])
-    
-  useEffect(() => {
-    setNodes(nds => nds.map(node => {
-      if (node.data.nodeType === 'seed') {
-        const subtreeCount = getSubtreeCount(node.id, nds, edges)
-        const glowState = computeSeedGlowState(subtreeCount)
-        return {
-          ...node,
-          data: {
-            ...node.data,
-            subtreeCount,
-            activated: subtreeCount >= 2,
-            glowState,
-          }
-        }
-      } else {
-        const depth = getDepth(node.id, nds, edges)
-        const seedId = getSeedId(node.id, nds, edges)
-        const glowState = computeGlowState(depth)
-        return {
-          ...node,
-          data: {
-            ...node.data,
-            depth,
-            seedId,
-            glowState,
-          }
-        }
-      }
-    }))
-  }, [edges])
-
-  return (
-    <div style={{ width: '100%', height: '100%' }} onDoubleClick={onDoubleClick}>
-      <ReactFlow
-        zoomOnDoubleClick={false}
-        defaultEdgeOptions={{ type: 'straight' }}
-        nodesConnectable={false}
-        elementsSelectable={false}
-        nodeOrigin={[0.5,0.5]}
-        nodes={nodes}
-        edges={edges}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onNodeClick={onNodeClick}
-        onPaneClick={onPaneClick}
-        nodeTypes={nodeTypes}
-      />
-    </div>
-  )
-}
+// ─── Pure utilities ───────────────────────────────────────────────────────────
 
 function uid() {
   return Math.random().toString(36).slice(2, 9)
 }
 
-// SEED COMPONENT: reads seed data and draws seed based on calculated glowState and returns counter display based on subtreeCount
-function SeedNode({ data }: NodeProps<InterlinkedNode>){
-  if (!data.visible) return null
-
-  let glowAmount = 0
-  if (data.glowState === 'none') glowAmount = 5
-  if (data.glowState === 'soft') glowAmount = 15
-  if (data.glowState === 'bright') glowAmount = 30
-
-  const color = data.seedId === 'seed1' ? '#f5c842' : '#8faa8b'
-  const shadowBase = data.seedId === 'seed1' ? '245, 200, 66' : '143, 170, 139'
-  
-  return (
-  <div className="relative flex flex-col items-center">
-
-    <div
-      style={{
-        width: 12,
-        height: 12,
-        borderRadius: '50%',
-        backgroundColor: color,
-        opacity: data.glowState === 'none' ? 0.5 : data.glowState === 'soft' ? 0.75 : 1,
-        boxShadow: `0 0 ${glowAmount}px rgba(${shadowBase}, 0.9), 0 0 ${glowAmount * 2}px rgba(${shadowBase}, 0.4)`,
-        transition: 'opacity 0.8s ease, box-shadow 0.8s ease',
-      }}
-    />
-
-    <p
-      style={{ color }}
-      className="mt-2 text-xs whitespace-nowrap"
-    >
-      {data.text}
-    </p>
-
-    <div className="flex gap-1 mt-2">
-      {[0, 1].map((i) => (
-        <div
-          key={i}
-          style={{
-            width: 6,
-            height: 6,
-            borderRadius: '50%',
-            backgroundColor: i < data.subtreeCount ? color : 'transparent',
-            border: `1px solid rgba(${shadowBase}, 0.5)`,
-            transition: 'background-color 0.4s ease',
-          }}
-        />
-      ))}
-    </div>
-
-    <Handle
-      type="source"
-      position={Position.Bottom}
-      style={{ opacity: 0 }}
-    />
-
-  </div>
-)
-}
-
-function StarNode({ data, id }: NodeProps<InterlinkedNode>){
-  const { setNodes } = useReactFlow()
-
-  const onChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const text = e.target.value
-    setNodes(nds => nds.map(n =>
-      n.id === id ? {
-        ...n,
-        data: {
-          ...n.data,
-          text,
-          charCount: text.length,
-          isValid: text.length >= 25,
-        }
-      } : n
-    ))
-  }, [id, setNodes])
-
-  const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      if (data.isValid) {
-        setNodes(nds => nds.map(n =>
-          n.id === id ? { ...n, data: { ...n.data, justCreated: false } } : n
-        ))
-      }
-    } else if (e.key === 'Escape') {
-      setNodes(nds => nds.filter(n => n.id !== id))
-    }
-  }, [id, data.isValid, setNodes])
-
-  const onBlur = useCallback(() => {
-    if (!data.isValid) {
-      setNodes(nds => nds.filter(n => n.id !== id))
-    }
-  }, [id, data.isValid, setNodes])
-
-  let glowAmount = 0
-  if (data.glowState === 'none') glowAmount = 5
-  if (data.glowState === 'soft') glowAmount = 15
-  if (data.glowState === 'bright') glowAmount = 30
-
-  const opacity = data.isValid ? 1 : 0.4
-  let color = '#e4eade'
+// Single source of truth for node color — used by node components + SVG overlay
+function getNodeColor(data: InterlinkedNodeData): string {
+  if (data.nodeType === 'seed') {
+    return data.seedId === 'seed1' ? '#f5c842' : '#8faa8b'
+  }
   if (data.seedId === 'seed1') {
-    if (data.depth <= 1) color = '#f5c842'
-    else if (data.depth === 2) color = '#c9a84c'
-    else color = '#e4eade'
-  } else if (data.seedId === 'seed2') {
-    if (data.depth <= 1) color = '#8faa8b'
-    else if (data.depth === 2) color = '#a8c4ab'
-    else color = '#e4eade'
+    if (data.depth <= 1) return '#f5c842'
+    if (data.depth === 2) return '#c9a84c'
+    return '#e4eade'
   }
-
-  if (data.justCreated) {
-    return (
-      <div className="relative flex flex-col items-center">
-        <div style={{
-          width: 10,
-          height: 10,
-          borderRadius: '50%',
-          backgroundColor: color,
-          opacity: 0.4,
-          boxShadow: `0 0 8px ${color}`,
-        }} />
-        <input
-          autoFocus
-          value = {data.text}
-          onChange={onChange}
-          onKeyDown={onKeyDown}
-          onBlur={onBlur}
-          placeholder="Type an idea..."
-          style={{
-            marginTop: 8,
-            background: 'transparent',
-            border: 'none',
-            borderBottom: `1px solid ${color}`,
-            color: '#e4eade',
-            font: "13px 'Plus Jakarta Sans', sans-serif",
-            outline: 'none',
-            width: 200,
-            textAlign: 'center',
-          }}
-        />
-        <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
-        <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
-      </div>
-    )
+  if (data.seedId === 'seed2') {
+    if (data.depth <= 1) return '#8faa8b'
+    if (data.depth === 2) return '#a8c4ab'
+    return '#e4eade'
   }
-
-  return (
-    <div className="relative flex flex-col items-center">
-
-      {data.selectedForBridge && (
-        <div
-          className="animate-ping absolute"
-          style={{
-            width: 10,
-            height: 10,
-            borderRadius: '50%',
-            backgroundColor: color,
-            opacity: 0.4,
-          }}
-        />
-      )}
-
-      <div
-        style={{
-          width: 10,
-          height: 10,
-          borderRadius: '50%',
-          backgroundColor: color,
-          opacity,
-          boxShadow: `0 0 ${glowAmount}px ${color}, 0 0 ${glowAmount * 2}px ${color}60`,
-          transition: 'opacity 0.6s ease, box-shadow 0.6s ease, background-color 0.6s ease',
-        }}
-      />
-
-      <p
-        style={{ color, opacity: 0.9 }}
-        className="mt-2 text-xs whitespace-nowrap max-w-48 text-center"
-      >
-        {data.text}
-      </p>
-
-      <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />
-      <Handle type="source" position={Position.Bottom} style={{ opacity: 0 }} />
-
-    </div>
-  )
+  return '#e4eade'
 }
 
 function computeSeedGlowState(subtreeCount: number): 'none' | 'soft' | 'bright' {
@@ -425,59 +102,395 @@ function computeGlowState(depth: number): 'none' | 'soft' | 'bright' {
   return 'bright'
 }
 
-function getDepth(id: string, nodes: InterlinkedNode[], edges: InterlinkedEdge[]): number{
+function getDepth(id: string, nodes: InterlinkedNode[], edges: InterlinkedEdge[]): number {
   let depth = 0
   let currentId = id
-  
   while (true) {
-    // find node with current id
     const node = nodes.find(n => n.id === currentId)
-    if (!node || node.data.nodeType === 'seed') return depth // if node doesn't exist/node is a seed return depth = 0
-
-    // find edge with the current id as the target
+    if (!node || node.data.nodeType === 'seed') return depth
     const parentEdge = edges.find(e => e.target === currentId)
-    if (!parentEdge) return depth // if there is no edge that exists, return depth
-
-    currentId = parentEdge.source // make the new current id = to the parent of that edge
-    depth += 1 // add 1 to depth and repeat until return
+    if (!parentEdge) return depth
+    currentId = parentEdge.source
+    depth += 1
   }
 }
 
 function getSeedId(id: string, nodes: InterlinkedNode[], edges: InterlinkedEdge[]): 'seed1' | 'seed2' | null {
   let currentId = id
-
-  while(true){
+  while (true) {
     const node = nodes.find(n => n.id === currentId)
-    if(!node) return null
-    
-    if(node.data.nodeType === 'seed') return node.id as 'seed1' | 'seed2'
-
+    if (!node) return null
+    if (node.data.nodeType === 'seed') return node.id as 'seed1' | 'seed2'
     const parentEdge = edges.find(e => e.target === currentId)
-    if(!parentEdge) return null
-    
+    if (!parentEdge) return null
     currentId = parentEdge.source
   }
 }
 
-function getSubtreeCount(id: string, nodes: InterlinkedNode[], edges: InterlinkedEdge[]): number{
+function getSubtreeCount(id: string, nodes: InterlinkedNode[], edges: InterlinkedEdge[]): number {
   const node = nodes.find(n => n.id === id)
   if (!node || node.data.nodeType !== 'seed') return 0
-
-  let subtreeCount = 0
-  for (const n of nodes){
-    const currentId = n.id
-    const output = getSeedId(currentId, nodes, edges)
-    if (output == id && n.data.isValid){
-      subtreeCount += 1
-    }
+  let count = 0
+  for (const n of nodes) {
+    if (getSeedId(n.id, nodes, edges) === id && n.data.isValid) count++
   }
-  return subtreeCount
+  return count
 }
 
-const nodeTypes: NodeTypes = {
-  seed: SeedNode,
-  star: StarNode
+
+// ─── Shared styles ────────────────────────────────────────────────────────────
+
+// Pins handles to the center of the star circle so edges connect to the dot,
+// not the top/bottom edge of the React Flow node bounding box
+const centeredHandle: React.CSSProperties = {
+  opacity: 0,
+  position: 'absolute',
+  top: '50%',
+  left: '50%',
+  transform: 'translate(-50%, -50%)',
+  width: 0,
+  height: 0,
+  minWidth: 0,
+  minHeight: 0,
 }
+
+
+// ─── SeedNode ─────────────────────────────────────────────────────────────────
+
+function SeedNode({ data }: NodeProps<InterlinkedNode>) {
+  if (!data.visible) return null
+
+  const color = getNodeColor(data)
+  const shadowBase = data.seedId === 'seed1' ? '245, 200, 66' : '143, 170, 139'
+  const glowAmount = data.glowState === 'none' ? 5 : data.glowState === 'soft' ? 15 : 30
+  const dotOpacity = data.glowState === 'none' ? 0.5 : data.glowState === 'soft' ? 0.75 : 1
+
+  return (
+    <div className="relative flex flex-col items-center">
+
+      {/* Selection ring — appears when seed is chosen as a link source */}
+      {data.selectedForBridge && (
+        <div style={{
+          position: 'absolute',
+          width: 28, height: 28, borderRadius: '50%',
+          border: `1px solid rgba(${shadowBase}, 0.35)`,
+          top: '50%', left: '50%',
+          transform: 'translate(-50%, -50%)',
+          pointerEvents: 'none',
+        }} />
+      )}
+
+      {/* Seed star dot */}
+      <div style={{
+        width: 12, height: 12, borderRadius: '50%',
+        backgroundColor: color, opacity: dotOpacity,
+        boxShadow: `0 0 ${glowAmount}px rgba(${shadowBase}, 0.9), 0 0 ${glowAmount * 2}px rgba(${shadowBase}, 0.4)`,
+        transition: 'opacity 0.8s ease, box-shadow 0.8s ease',
+      }} />
+
+      {/* Prompt label — always visible, seeds are the session anchors */}
+      <p style={{ color }} className="mt-2 text-xs whitespace-nowrap">
+        {data.text}
+      </p>
+
+      {/* 0/2 progress dots */}
+      <div className="flex gap-1 mt-2 justify-center">
+        {[0, 1].map((i) => (
+          <div key={i} style={{
+            width: 6, height: 6, borderRadius: '50%',
+            backgroundColor: i < data.subtreeCount ? color : 'transparent',
+            border: `1px solid rgba(${shadowBase}, 0.5)`,
+            transition: 'background-color 0.4s ease',
+          }} />
+        ))}
+      </div>
+
+      <Handle type="source" position={Position.Right} style={centeredHandle} />
+      <Handle type="target" position={Position.Left} style={centeredHandle} />
+    </div>
+  )
+}
+
+
+// ─── StarNode ─────────────────────────────────────────────────────────────────
+
+function StarNode({ data, id }: NodeProps<InterlinkedNode>) {
+  const { setNodes } = useReactFlow()
+  const [hovered, setHovered] = useState(false)
+
+  const onChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const text = e.target.value
+    setNodes(nds => nds.map(n =>
+      n.id === id ? { ...n, data: { ...n.data, text, charCount: text.length, isValid: text.length >= 10 } } : n
+    ))
+  }, [id, setNodes])
+
+  const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && data.isValid) {
+      setNodes(nds => nds.map(n => n.id === id ? { ...n, data: { ...n.data, justCreated: false } } : n))
+    } else if (e.key === 'Escape') {
+      setNodes(nds => nds.filter(n => n.id !== id))
+    }
+  }, [id, data.isValid, setNodes])
+
+  const onBlur = useCallback(() => {
+    if (!data.isValid) setNodes(nds => nds.filter(n => n.id !== id))
+  }, [id, data.isValid, setNodes])
+
+  const color = getNodeColor(data)
+  const glowAmount = data.glowState === 'none' ? 5 : data.glowState === 'soft' ? 15 : 30
+  const opacity = data.isValid ? 1 : 0.4
+
+  // Editing state — just created, waiting for input
+  if (data.justCreated) {
+    return (
+      <div className="relative flex flex-col items-center">
+        <div style={{
+          width: 10, height: 10, borderRadius: '50%',
+          backgroundColor: color, opacity: 0.4, boxShadow: `0 0 8px ${color}`,
+        }} />
+        <input
+          autoFocus value={data.text}
+          onChange={onChange} onKeyDown={onKeyDown} onBlur={onBlur}
+          placeholder="Type an idea..."
+          style={{
+            marginTop: 8, background: 'transparent', border: 'none',
+            borderBottom: `1px solid ${color}`, color: '#e4eade',
+            font: "13px 'Plus Jakarta Sans', sans-serif",
+            outline: 'none', width: 200, textAlign: 'center',
+          }}
+        />
+        <Handle type="target" position={Position.Left} style={centeredHandle} />
+        <Handle type="source" position={Position.Right} style={centeredHandle} />
+      </div>
+    )
+  }
+
+  // Committed star
+  return (
+    <div
+      className="relative flex flex-col items-center"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      {/* Pulse ring when selected as link source */}
+      {data.selectedForBridge && (
+        <div className="animate-ping absolute" style={{
+          width: 10, height: 10, borderRadius: '50%',
+          backgroundColor: color, opacity: 0.4,
+        }} />
+      )}
+
+      {/* Star dot */}
+      <div style={{
+        width: 10, height: 10, borderRadius: '50%',
+        backgroundColor: color, opacity,
+        boxShadow: `0 0 ${glowAmount}px ${color}, 0 0 ${glowAmount * 2}px ${color}60`,
+        transition: 'opacity 0.6s ease, box-shadow 0.6s ease, background-color 0.6s ease',
+      }} />
+
+      {/* Text — only on hover or when selected as link source */}
+      {(hovered || data.selectedForBridge) && (
+        <p style={{ color, opacity: 0.9 }} className="mt-2 text-xs whitespace-nowrap max-w-48 text-center">
+          {data.text}
+        </p>
+      )}
+
+      <Handle type="target" position={Position.Left} style={centeredHandle} />
+      <Handle type="source" position={Position.Right} style={centeredHandle} />
+    </div>
+  )
+}
+
+const nodeTypes: NodeTypes = { seed: SeedNode, star: StarNode }
+
+
+// ─── Canvas inner ─────────────────────────────────────────────────────────────
+
+function CanvasInner() {
+  const [nodes, setNodes, onNodesChange] = useNodesState<InterlinkedNode>(initialNodes)
+  const [edges, setEdges, onEdgesChange] = useEdgesState<InterlinkedEdge>(initialEdges)
+  const [pendingSourceId, setPendingSourceId] = useState<string | null>(null)
+  const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
+  const [snappingEdges, setSnappingEdges] = useState<SnappingEdge[]>([])
+  const { screenToFlowPosition, getViewport } = useReactFlow()
+
+  // Recompute all derived node data whenever edges change.
+  // Also reveals seed2 once seed1 reaches activated state (subtreeCount >= 2).
+  useEffect(() => {
+    setNodes(nds => {
+      const updated = nds.map(node => {
+        if (node.data.nodeType === 'seed') {
+          const subtreeCount = getSubtreeCount(node.id, nds, edges)
+          const glowState = computeSeedGlowState(subtreeCount)
+          return { ...node, data: { ...node.data, subtreeCount, activated: subtreeCount >= 2, glowState } }
+        } else {
+          const depth = getDepth(node.id, nds, edges)
+          const seedId = getSeedId(node.id, nds, edges)
+          const glowState = computeGlowState(depth)
+          return { ...node, data: { ...node.data, depth, seedId, glowState } }
+        }
+      })
+      const seed1 = updated.find(n => n.id === 'seed1')
+      if (seed1?.data.activated) {
+        return updated.map(n => n.id === 'seed2' ? { ...n, data: { ...n.data, visible: true } } : n)
+      }
+      return updated
+    })
+  }, [edges])
+
+  // Track cursor — only fires re-renders while a connection is pending
+  const onMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (pendingSourceId === null) return
+    const rect = e.currentTarget.getBoundingClientRect()
+    setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top })
+  }, [pendingSourceId])
+
+  // Double-click empty canvas → create new star at that position
+  const onDoubleClick = useCallback((e: React.MouseEvent) => {
+    if (!(e.target as Element).classList.contains('react-flow__pane')) return
+    const position = screenToFlowPosition({ x: e.clientX, y: e.clientY })
+    setNodes(nds => [...nds, {
+      id: uid(), type: 'star', position,
+      data: {
+        text: '', nodeType: 'star', seedId: null, depth: 1, glowState: 'none',
+        charCount: 0, isValid: false, subtreeCount: 0, activated: false,
+        visible: true, selectedForBridge: false, justCreated: true,
+      }
+    }])
+  }, [screenToFlowPosition, setNodes])
+
+  // Click node → two-click linking: first click selects source, second click completes edge
+  const onNodeClick = useCallback((_: React.MouseEvent, node: InterlinkedNode) => {
+    if (pendingSourceId === null) {
+      setPendingSourceId(node.id)
+      setNodes(nds => nds.map(n =>
+        n.id === node.id ? { ...n, data: { ...n.data, selectedForBridge: true } } : n
+      ))
+    } else if (pendingSourceId === node.id) {
+      // Clicked same node again — cancel
+      setPendingSourceId(null)
+      setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, selectedForBridge: false } })))
+    } else {
+      // Complete connection, add snap flash
+      setEdges(eds => [...eds, { id: `${pendingSourceId}-${node.id}`, source: pendingSourceId, target: node.id }])
+      setSnappingEdges(prev => [...prev, { sourceId: pendingSourceId, targetId: node.id, createdAt: Date.now() }])
+      setPendingSourceId(null)
+      setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, selectedForBridge: false } })))
+    }
+  }, [pendingSourceId, setNodes, setEdges])
+
+  // Click empty canvas → cancel pending connection
+  const onPaneClick = useCallback(() => {
+    if (pendingSourceId === null) return
+    setPendingSourceId(null)
+    setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, selectedForBridge: false } })))
+  }, [pendingSourceId, setNodes])
+
+  // Right-click node → delete star and its edges (seeds are protected)
+  const onNodeContextMenu = useCallback((e: React.MouseEvent, node: InterlinkedNode) => {
+    e.preventDefault()
+    if (node.data.nodeType === 'seed') return
+    setEdges(eds => eds.filter(ex => ex.source !== node.id && ex.target !== node.id))
+    setNodes(nds => nds.filter(n => n.id !== node.id))
+  }, [setEdges, setNodes])
+
+  // Right-click edge → delete that edge
+  const onEdgeContextMenu = useCallback((e: React.MouseEvent, edge: InterlinkedEdge) => {
+    e.preventDefault()
+    setEdges(eds => eds.filter(ex => ex.id !== edge.id))
+  }, [setEdges])
+
+  // Converts a node's flow-space position to screen-space pixels for the SVG overlay
+  function toScreen(pos: { x: number; y: number }) {
+    const { x, y, zoom } = getViewport()
+    return { x: pos.x * zoom + x, y: pos.y * zoom + y }
+  }
+
+  const pendingSourceNode = nodes.find(n => n.id === pendingSourceId)
+  const pendingColor = pendingSourceNode ? getNodeColor(pendingSourceNode.data) : '#e4eade'
+
+  return (
+    <div
+      style={{ width: '100%', height: '100%', position: 'relative' }}
+      onDoubleClick={onDoubleClick}
+      onMouseMove={onMouseMove}
+    >
+      <ReactFlow
+        nodes={nodes} edges={edges}
+        onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
+        onNodeClick={onNodeClick} onPaneClick={onPaneClick}
+        onNodeContextMenu={onNodeContextMenu} onEdgeContextMenu={onEdgeContextMenu}
+        nodeTypes={nodeTypes}
+        zoomOnDoubleClick={false}
+        nodeOrigin={[0.5, 0.5]}
+        nodesConnectable={false}
+        elementsSelectable={false}
+        defaultEdgeOptions={{
+          type: 'straight',
+          style: {
+            stroke: '#4f5d4e',
+            strokeWidth: 1.5,
+            filter: 'drop-shadow(0 0 3px rgba(79, 93, 78, 0.6))',
+          },
+        }}
+      />
+
+      {/* SVG overlay — lives on top of React Flow, pointer-events disabled so it doesn't block interaction */}
+      <svg
+        style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 10 }}
+        width="100%" height="100%"
+      >
+        <defs>
+          <style>{`
+            .snap-flash-line {
+              animation: snap-flash 1.2s ease-out forwards;
+            }
+            @keyframes snap-flash {
+              from { opacity: 0.9; stroke-width: 2.75px; }
+              to   { opacity: 0;   stroke-width: 0.75px; }
+            }
+          `}</style>
+        </defs>
+
+        {/* Rubber band line — follows cursor while a connection is pending */}
+        {pendingSourceNode && (() => {
+          const { x, y } = toScreen(pendingSourceNode.position)
+          return (
+            <line
+              x1={x} y1={y} x2={mousePos.x} y2={mousePos.y}
+              stroke={pendingColor} strokeWidth={1.5}
+              style={{ filter: `drop-shadow(0 0 6px ${pendingColor})` }}
+            />
+          )
+        })()}
+
+        {/* Snap flash — bright fade-out line plays once on new connection, then removes itself */}
+        {snappingEdges.map(se => {
+          const src = nodes.find(n => n.id === se.sourceId)
+          const tgt = nodes.find(n => n.id === se.targetId)
+          if (!src || !tgt) return null
+          const { x: x1, y: y1 } = toScreen(src.position)
+          const { x: x2, y: y2 } = toScreen(tgt.position)
+          return (
+            <line
+              key={`snap-${se.createdAt}`}
+              x1={x1} y1={y1} x2={x2} y2={y2}
+              stroke="rgba(228, 234, 222, 0.9)" strokeWidth={2.75}
+              className="snap-flash-line"
+              onAnimationEnd={() =>
+                setSnappingEdges(prev => prev.filter(e => e.createdAt !== se.createdAt))
+              }
+            />
+          )
+        })}
+      </svg>
+    </div>
+  )
+}
+
+
+// ─── Root export ──────────────────────────────────────────────────────────────
 
 export function ConstellationCanvas() {
   return (
@@ -488,9 +501,6 @@ export function ConstellationCanvas() {
     </div>
   )
 }
-
-
-
 
 
 
