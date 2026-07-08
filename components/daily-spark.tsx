@@ -447,7 +447,7 @@ export function DailySpark() {
       </aside>
 
       {/* Canvas */}
-      <section className="relative flex-1 h-full">
+      <section className="relative flex-1 h-screen">
       {phase === 'ready' && <ConstellationCanvas />}
       </section>
     </div>

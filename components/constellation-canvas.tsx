@@ -444,9 +444,11 @@ const nodeTypes: NodeTypes = {
 
 export function ConstellationCanvas() {
   return (
-    <ReactFlowProvider>
-      <CanvasInner />
-    </ReactFlowProvider>
+    <div style={{ width: '100%', height: '100%' }}>
+      <ReactFlowProvider>
+        <CanvasInner />
+      </ReactFlowProvider>
+    </div>
   )
 }
 
