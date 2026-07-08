@@ -365,6 +365,8 @@ function CanvasInner() {
   const onNodeClick = useCallback((_: React.MouseEvent, node: InterlinkedNode) => {
     if (node.data.justCreated) return
     if (pendingSourceId === null) {
+      const { x: vx, y: vy, zoom } = getViewport()
+      setMousePos({ x: node.position.x * zoom + vx, y: node.position.y * zoom + vy })
       setPendingSourceId(node.id)
       setNodes(nds => nds.map(n =>
         n.id === node.id ? { ...n, data: { ...n.data, selectedForBridge: true } } : n
