@@ -332,7 +332,7 @@ function InterlinkedEdge({ sourceX, sourceY, targetX, targetY, style }: EdgeProp
   return (
     <>
       {/* Invisible 20px hit area — makes right-click actually catchable */}
-      <path d={edgePath} strokeWidth={20} stroke="transparent" fill="none" />
+      <path d={edgePath} strokeWidth={20} stroke="transparent" fill="none" pointerEvents="all" />
       {/* Visible line */}
       <path d={edgePath} style={style} fill="none" />
     </>
