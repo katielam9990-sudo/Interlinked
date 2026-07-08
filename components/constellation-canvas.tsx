@@ -417,7 +417,13 @@ function CanvasInner() {
       setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, selectedForBridge: false } })))
     } else {
       const pendingNode = nodes.find(n => n.id === pendingSourceId)
-      const shouldFlip = node.data.nodeType === 'seed' && pendingNode?.data.nodeType !== 'seed'
+      const pendingDepth = getDepth(pendingSourceId!, nodes, edges)
+      const clickedDepth = getDepth(node.id, nodes, edges)
+
+      const shouldFlip =
+        (node.data.nodeType === 'seed' && pendingNode?.data.nodeType !== 'seed') ||
+        (node.data.nodeType !== 'seed' && pendingNode?.data.nodeType !== 'seed' && pendingDepth > clickedDepth)
+        
       const finalSource = shouldFlip ? node.id : pendingSourceId
       const finalTarget = shouldFlip ? pendingSourceId : node.id
 
@@ -511,7 +517,7 @@ function CanvasInner() {
           {canvasPrompt}
         </div>
       )}
-      
+
       {/* SVG overlay — lives on top of React Flow, pointer-events disabled so it doesn't block interaction */}
       <svg
         style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 10 }}
