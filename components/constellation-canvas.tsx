@@ -286,7 +286,7 @@ function StarNode({ data, id }: NodeProps<InterlinkedNode>) {
         <Handle type="source" position={Position.Right} style={centeredHandle} />
       </div>
 
-      {/* Text absolutely positioned — appears below without moving the dot */}
+      {/* Text absolutely positioned — appears below without moving the dot. */}
       {(hovered || data.selectedForBridge) && (
         <p style={{
           position: 'absolute',
