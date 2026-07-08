@@ -176,8 +176,9 @@ function SeedNode({ data }: NodeProps<InterlinkedNode>) {
   const dotOpacity = data.glowState === 'none' ? 0.5 : data.glowState === 'soft' ? 0.75 : 1
 
   return (
-    <div style={{ position: 'relative', width: 12, height: 12 }}
-    onMouseEnter={() => setDiscovered(true)}
+    <div
+      style={{ position: 'relative', width: 12, height: 12 }}
+      onMouseEnter={() => setDiscovered(true)}
     >
       {data.selectedForBridge && (
         <div style={{
@@ -193,33 +194,38 @@ function SeedNode({ data }: NodeProps<InterlinkedNode>) {
         boxShadow: `0 0 ${glowAmount}px rgba(${shadowBase}, 0.9), 0 0 ${glowAmount * 2}px rgba(${shadowBase}, 0.4)`,
         transition: 'opacity 0.8s ease, box-shadow 0.8s ease',
       }} />
-      {discovered &&(
-        <p style={{
-          position: 'absolute', top: 18, left: '50%', transform: 'translateX(-50%)',
-          color, fontSize: '12px', whiteSpace: 'nowrap', pointerEvents: 'none',
-        }}>
-          {data.text}
-        </p>
+
+      {discovered && (
+        <>
+          <p style={{
+            position: 'absolute', top: 18, left: '50%', transform: 'translateX(-50%)',
+            color, fontSize: '12px', whiteSpace: 'nowrap', pointerEvents: 'none',
+            margin: 0,
+          }}>
+            {data.text}
+          </p>
+          <div style={{
+            position: 'absolute', top: 36, left: '50%', transform: 'translateX(-50%)',
+            display: 'flex', gap: '5px', alignItems: 'center',
+          }}>
+            {[0, 1].map((i) => (
+              <div key={i} style={{
+                width: 5, height: 5, borderRadius: '50%',
+                flexShrink: 0,
+                backgroundColor: i < data.subtreeCount ? color : 'transparent',
+                boxShadow: `0 0 0 1px rgba(${shadowBase}, 0.5)`,
+                transition: 'background-color 0.4s ease',
+              }} />
+            ))}
+          </div>
+        </>
       )}
-      <div style={{
-        position: 'absolute', top: 36, left: '50%', transform: 'translateX(-50%)',
-        display: 'flex', gap: '4px',
-      }}>
-        {[0, 1].map((i) => (
-          <div key={i} style={{
-            width: 6, height: 6, borderRadius: '50%',
-            backgroundColor: i < data.subtreeCount ? color : 'transparent',
-            border: `1px solid rgba(${shadowBase}, 0.5)`,
-            transition: 'background-color 0.4s ease',
-          }} />
-        ))}
-      </div>
+
       <Handle type="source" position={Position.Right} style={centeredHandle} />
       <Handle type="target" position={Position.Left} style={centeredHandle} />
     </div>
   )
 }
-
 
 // ─── StarNode ─────────────────────────────────────────────────────────────────
 
