@@ -447,11 +447,8 @@ export function DailySpark() {
       </aside>
 
       {/* Canvas */}
-      <section className="relative flex-1">
-      <ConstellationCanvas
-        key={phase === 'ready' ? `active-${canvasKey}` : 'inactive'}
-        seeds={phase === 'ready' ? seeds : []}
-      />
+      <section className="relative flex-1 h-full">
+      {phase === 'ready' && <ConstellationCanvas />}
       </section>
     </div>
   )
