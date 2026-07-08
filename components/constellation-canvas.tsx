@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -101,23 +101,88 @@ const initialEdges: InterlinkedEdge[] = []
 function CanvasInner() {
   const [nodes, setNodes, onNodesChange] = useNodesState<InterlinkedNode>(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState<InterlinkedEdge>(initialEdges)
+  const { screenToFlowPosition } = useReactFlow()
+
+  
+  const onConnect = useCallback((connection: Connection) => {
+    setEdges(eds => addEdge(connection, eds))
+  }, [setEdges])
+
+  const onDoubleClick = useCallback((e: React.MouseEvent) => {
+    if (!(e.target as Element).classList.contains('react-flow__pane')) return
+
+    const position = screenToFlowPosition({ x: e.clientX, y: e.clientY })
+
+    const newNode: InterlinkedNode = {
+      id: uid(),
+      type: 'star',
+      position,
+      data: {
+        text: '',
+        nodeType: 'star',
+        seedId: null,
+        depth: 1,
+        glowState: 'none',
+        charCount: 0,
+        isValid: false,
+        subtreeCount: 0,
+        activated: false,
+        visible: true,
+        selectedForBridge: false,
+        justCreated: true,
+      }
+    }
+
+    setNodes(nds => [...nds, newNode])
+  }, [screenToFlowPosition, setNodes])
+  
+  useEffect(() => {
+    setNodes(nds => nds.map(node => {
+      if (node.data.nodeType === 'seed') {
+        const subtreeCount = getSubtreeCount(node.id, nds, edges)
+        const glowState = computeSeedGlowState(subtreeCount)
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            subtreeCount,
+            activated: subtreeCount >= 2,
+            glowState,
+          }
+        }
+      } else {
+        const depth = getDepth(node.id, nds, edges)
+        const seedId = getSeedId(node.id, nds, edges)
+        const glowState = computeGlowState(depth)
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            depth,
+            seedId,
+            glowState,
+          }
+        }
+      }
+    }))
+  }, [edges])
 
   return (
-    <div style={{ width: '100%', height: '100%' }}>
+    <div style={{ width: '100%', height: '100%' }} onDoubleClick={onDoubleClick}>
       <ReactFlow
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
         nodeTypes={nodeTypes}
       />
     </div>
   )
 }
 
-const nodeTypes: NodeTypes = {
-  seed: SeedNode,
-  star: StarNode
+function uid() {
+  return Math.random().toString(36).slice(2, 9)
 }
 
 // SEED COMPONENT: reads seed data and draws seed based on calculated glowState and returns counter display based on subtreeCount
@@ -130,7 +195,7 @@ function SeedNode({ data }: NodeProps<InterlinkedNode>){
   if (data.glowState === 'bright') glowAmount = 30
 
   const color = data.seedId === 'seed1' ? '#f5c842' : '#8faa8b'
-  const shadowBase = data.seedId === 'seed1' ? 'rgba(245, 200, 66' : 'rgba(143, 170, 139'
+  const shadowBase = data.seedId === 'seed1' ? '245, 200, 66' : '143, 170, 139'
   
   return (
   <div className="relative flex flex-col items-center">
@@ -141,7 +206,7 @@ function SeedNode({ data }: NodeProps<InterlinkedNode>){
         height: 12,
         borderRadius: '50%',
         backgroundColor: color,
-        opacity: data.glowState === 'none' ? 0.2 : data.glowState === 'soft' ? 0.6 : 1,
+        opacity: data.glowState === 'none' ? 0.5 : data.glowState === 'soft' ? 0.75 : 1,
         boxShadow: `0 0 ${glowAmount}px rgba(${shadowBase}, 0.9), 0 0 ${glowAmount * 2}px rgba(${shadowBase}, 0.4)`,
         transition: 'opacity 0.8s ease, box-shadow 0.8s ease',
       }}
@@ -180,7 +245,42 @@ function SeedNode({ data }: NodeProps<InterlinkedNode>){
 )
 }
 
-function StarNode({ data }: NodeProps<InterlinkedNode>){
+function StarNode({ data, id }: NodeProps<InterlinkedNode>){
+  const { setNodes } = useReactFlow()
+
+  const onChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const text = e.target.value
+    setNodes(nds => nds.map(n =>
+      n.id === id ? {
+        ...n,
+        data: {
+          ...n.data,
+          text,
+          charCount: text.length,
+          isValid: text.length >= 25,
+        }
+      } : n
+    ))
+  }, [id, setNodes])
+
+  const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      if (data.isValid) {
+        setNodes(nds => nds.map(n =>
+          n.id === id ? { ...n, data: { ...n.data, justCreated: false } } : n
+        ))
+      }
+    } else if (e.key === 'Escape') {
+      setNodes(nds => nds.filter(n => n.id !== id))
+    }
+  }, [id, data.isValid, setNodes])
+
+  const onBlur = useCallback(() => {
+    if (!data.isValid) {
+      setNodes(nds => nds.filter(n => n.id !== id))
+    }
+  }, [id, data.isValid, setNodes])
+
   let glowAmount = 0
   if (data.glowState === 'none') glowAmount = 5
   if (data.glowState === 'soft') glowAmount = 15
@@ -211,6 +311,10 @@ function StarNode({ data }: NodeProps<InterlinkedNode>){
         }} />
         <input
           autoFocus
+          value = {data.text}
+          onChange={onChange}
+          onKeyDown={onKeyDown}
+          onBlur={onBlur}
           placeholder="Type an idea..."
           style={{
             marginTop: 8,
@@ -284,6 +388,59 @@ function computeGlowState(depth: number): 'none' | 'soft' | 'bright' {
   return 'bright'
 }
 
+function getDepth(id: string, nodes: InterlinkedNode[], edges: InterlinkedEdge[]): number{
+  let depth = 0
+  let currentId = id
+  
+  while (true) {
+    // find node with current id
+    const node = nodes.find(n => n.id === currentId)
+    if (!node || node.data.nodeType === 'seed') return depth // if node doesn't exist/node is a seed return depth = 0
+
+    // find edge with the current id as the target
+    const parentEdge = edges.find(e => e.target === currentId)
+    if (!parentEdge) return depth // if there is no edge that exists, return depth
+
+    currentId = parentEdge.source // make the new current id = to the parent of that edge
+    depth += 1 // add 1 to depth and repeat until return
+  }
+}
+
+function getSeedId(id: string, nodes: InterlinkedNode[], edges: InterlinkedEdge[]): 'seed1' | 'seed2' | null {
+  let currentId = id
+
+  while(true){
+    const node = nodes.find(n => n.id === currentId)
+    if(!node) return null
+    
+    if(node.data.nodeType === 'seed') return node.id as 'seed1' | 'seed2'
+
+    const parentEdge = edges.find(e => e.target === currentId)
+    if(!parentEdge) return null
+    
+    currentId = parentEdge.source
+  }
+}
+
+function getSubtreeCount(id: string, nodes: InterlinkedNode[], edges: InterlinkedEdge[]): number{
+  const node = nodes.find(n => n.id === id)
+  if (!node || node.data.nodeType !== 'seed') return 0
+
+  let subtreeCount = 0
+  for (const n of nodes){
+    const currentId = n.id
+    const output = getSeedId(currentId, nodes, edges)
+    if (output == id && n.data.isValid){
+      subtreeCount += 1
+    }
+  }
+  return subtreeCount
+}
+
+const nodeTypes: NodeTypes = {
+  seed: SeedNode,
+  star: StarNode
+}
 
 export function ConstellationCanvas() {
   return (
