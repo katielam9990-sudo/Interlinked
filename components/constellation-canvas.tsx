@@ -466,14 +466,14 @@ function CanvasInner() {
         </defs>
 
         {/* Rubber band line — follows cursor while a connection is pending */}
-        {pendingSourceNode && (() => {
-            <line
-              x1={pendingAnchorPos.x} y1={pendingAnchorPos.y}
-              x2={mousePos.x} y2={mousePos.y}
-              stroke={pendingColor} strokeWidth={1.5}
-              style={{ filter: `drop-shadow(0 0 6px ${pendingColor})` }}
-            />
-        })()}
+        {pendingSourceNode && (
+          <line
+            x1={pendingAnchorPos.x} y1={pendingAnchorPos.y}
+            x2={mousePos.x} y2={mousePos.y}
+            stroke={pendingColor} strokeWidth={1.5}
+            style={{ filter: `drop-shadow(0 0 6px ${pendingColor})` }}
+          />
+        )}
 
         {/* Snap flash — bright fade-out line plays once on new connection, then removes itself */}
         {snappingEdges.map(se => {
