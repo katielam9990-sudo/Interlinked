@@ -227,7 +227,7 @@ function StarNode({ data, id }: NodeProps<InterlinkedNode>) {
 
   const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && data.isValid) {
-      setNodes(nds => nds.map(n => n.id === id ? { ...n, data: { ...n.data, justCreated: false } } : n))
+      setNodes(nds => nds.map(n => n.id === id ? { ...n, data: { ...n.data, draggable: true, justCreated: false } } : n))
     } else if (e.key === 'Escape') {
       setNodes(nds => nds.filter(n => n.id !== id))
     }
@@ -352,7 +352,7 @@ function CanvasInner() {
     if (!(e.target as Element).classList.contains('react-flow__pane')) return
     const position = screenToFlowPosition({ x: e.clientX, y: e.clientY })
     setNodes(nds => [...nds, {
-      id: uid(), type: 'star', position,
+      id: uid(), type: 'star', position, draggable: false,
       data: {
         text: '', nodeType: 'star', seedId: null, depth: 1, glowState: 'none',
         charCount: 0, isValid: false, subtreeCount: 0, activated: false,
