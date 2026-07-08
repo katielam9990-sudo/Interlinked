@@ -170,6 +170,8 @@ function CanvasInner() {
   return (
     <div style={{ width: '100%', height: '100%' }} onDoubleClick={onDoubleClick}>
       <ReactFlow
+        zoomOnDoubleClick={false}
+        nodeOrigin={[0.5,0.5]}
         nodes={nodes}
         edges={edges}
         onNodesChange={onNodesChange}
