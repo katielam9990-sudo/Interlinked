@@ -81,16 +81,16 @@ function getNodeColor(data: InterlinkedNodeData): string {
     return data.seedId === 'seed1' ? '#f5c842' : '#8faa8b'
   }
   if (data.seedId === 'seed1') {
-    if (data.depth <= 1) return '#f5c842'
-    if (data.depth === 2) return '#c9a84c'
-    return '#e4eade'
+    if (data.depth <= 1) return '#f5ead0'
+    if (data.depth === 2) return '#f2dda8'
+    return 'ede9e0'
   }
   if (data.seedId === 'seed2') {
-    if (data.depth <= 1) return '#8faa8b'
-    if (data.depth === 2) return '#a8c4ab'
-    return '#e4eade'
+    if (data.depth <= 1) return '#dce8d9'
+    if (data.depth === 2) return '#cce0c9'
+    return '#e4e8e2'
   }
-  return '#e4eade'
+  return '#ede9e0'
 }
 
 function computeSeedGlowState(subtreeCount: number): 'none' | 'soft' | 'bright' {
