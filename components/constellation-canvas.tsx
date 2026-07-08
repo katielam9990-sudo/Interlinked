@@ -166,31 +166,31 @@ function SeedNode({ data }: NodeProps<InterlinkedNode>) {
   const dotOpacity = data.glowState === 'none' ? 0.5 : data.glowState === 'soft' ? 0.75 : 1
 
   return (
-    <div className="flex flex-col items-center">
-
-      {/* Dot wrapper — handles live here so they center on the dot, not the whole node */}
-      <div style={{ position: 'relative', width: 12, height: 12 }}>
-        {data.selectedForBridge && (
-          <div style={{
-            position: 'absolute', width: 28, height: 28, borderRadius: '50%',
-            border: `1px solid rgba(${shadowBase}, 0.35)`,
-            top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-            pointerEvents: 'none',
-          }} />
-        )}
+    <div style={{ position: 'relative', width: 12, height: 12 }}>
+      {data.selectedForBridge && (
         <div style={{
-          width: 12, height: 12, borderRadius: '50%',
-          backgroundColor: color, opacity: dotOpacity,
-          boxShadow: `0 0 ${glowAmount}px rgba(${shadowBase}, 0.9), 0 0 ${glowAmount * 2}px rgba(${shadowBase}, 0.4)`,
-          transition: 'opacity 0.8s ease, box-shadow 0.8s ease',
+          position: 'absolute', width: 28, height: 28, borderRadius: '50%',
+          border: `1px solid rgba(${shadowBase}, 0.35)`,
+          top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+          pointerEvents: 'none',
         }} />
-        <Handle type="source" position={Position.Right} style={centeredHandle} />
-        <Handle type="target" position={Position.Left} style={centeredHandle} />
-      </div>
-
-      <p style={{ color }} className="mt-2 text-xs whitespace-nowrap">{data.text}</p>
-
-      <div className="flex gap-1 mt-2 justify-center">
+      )}
+      <div style={{
+        width: 12, height: 12, borderRadius: '50%',
+        backgroundColor: color, opacity: dotOpacity,
+        boxShadow: `0 0 ${glowAmount}px rgba(${shadowBase}, 0.9), 0 0 ${glowAmount * 2}px rgba(${shadowBase}, 0.4)`,
+        transition: 'opacity 0.8s ease, box-shadow 0.8s ease',
+      }} />
+      <p style={{
+        position: 'absolute', top: 18, left: '50%', transform: 'translateX(-50%)',
+        color, fontSize: '12px', whiteSpace: 'nowrap', pointerEvents: 'none',
+      }}>
+        {data.text}
+      </p>
+      <div style={{
+        position: 'absolute', top: 36, left: '50%', transform: 'translateX(-50%)',
+        display: 'flex', gap: '4px',
+      }}>
         {[0, 1].map((i) => (
           <div key={i} style={{
             width: 6, height: 6, borderRadius: '50%',
@@ -200,7 +200,8 @@ function SeedNode({ data }: NodeProps<InterlinkedNode>) {
           }} />
         ))}
       </div>
-
+      <Handle type="source" position={Position.Right} style={centeredHandle} />
+      <Handle type="target" position={Position.Left} style={centeredHandle} />
     </div>
   )
 }
@@ -344,7 +345,6 @@ function CanvasInner() {
 
   // Track cursor — only fires re-renders while a connection is pending
   const onMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    if (pendingSourceId === null) return
     const rect = e.currentTarget.getBoundingClientRect()
     setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top })
   }, [pendingSourceId])
@@ -378,14 +378,13 @@ function CanvasInner() {
       setPendingSourceId(null)
       setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, selectedForBridge: false } })))
     } else {
-      // If user clicked star → seed, flip so seed is always the source
       const pendingNode = nodes.find(n => n.id === pendingSourceId)
       const shouldFlip = node.data.nodeType === 'seed' && pendingNode?.data.nodeType !== 'seed'
       const finalSource = shouldFlip ? node.id : pendingSourceId
       const finalTarget = shouldFlip ? pendingSourceId : node.id
-      // Complete connection, add snap flash
-      setEdges(eds => [...eds, { id: `${pendingSourceId}-${node.id}`, source: pendingSourceId, target: node.id }])
-      setSnappingEdges(prev => [...prev, { sourceId: pendingSourceId, targetId: node.id, createdAt: Date.now() }])
+
+      setEdges(eds => [...eds, { id: `${finalSource}-${finalTarget}`, source: finalSource, target: finalTarget }])
+      setSnappingEdges(prev => [...prev, { sourceId: finalSource, targetId: finalTarget, createdAt: Date.now() }])
       setPendingSourceId(null)
       setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, selectedForBridge: false } })))
     }
@@ -468,15 +467,12 @@ function CanvasInner() {
 
         {/* Rubber band line — follows cursor while a connection is pending */}
         {pendingSourceNode && (() => {
-          const { x, y } = toScreen(pendingSourceNode.position)
-          return (
             <line
               x1={pendingAnchorPos.x} y1={pendingAnchorPos.y}
               x2={mousePos.x} y2={mousePos.y}
               stroke={pendingColor} strokeWidth={1.5}
               style={{ filter: `drop-shadow(0 0 6px ${pendingColor})` }}
             />
-          )
         })()}
 
         {/* Snap flash — bright fade-out line plays once on new connection, then removes itself */}
