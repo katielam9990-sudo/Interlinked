@@ -166,34 +166,30 @@ function SeedNode({ data }: NodeProps<InterlinkedNode>) {
   const dotOpacity = data.glowState === 'none' ? 0.5 : data.glowState === 'soft' ? 0.75 : 1
 
   return (
-    <div className="relative flex flex-col items-center">
+    <div className="flex flex-col items-center">
 
-      {/* Selection ring — appears when seed is chosen as a link source */}
-      {data.selectedForBridge && (
+      {/* Dot wrapper — handles live here so they center on the dot, not the whole node */}
+      <div style={{ position: 'relative', width: 12, height: 12 }}>
+        {data.selectedForBridge && (
+          <div style={{
+            position: 'absolute', width: 28, height: 28, borderRadius: '50%',
+            border: `1px solid rgba(${shadowBase}, 0.35)`,
+            top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
+            pointerEvents: 'none',
+          }} />
+        )}
         <div style={{
-          position: 'absolute',
-          width: 28, height: 28, borderRadius: '50%',
-          border: `1px solid rgba(${shadowBase}, 0.35)`,
-          top: '50%', left: '50%',
-          transform: 'translate(-50%, -50%)',
-          pointerEvents: 'none',
+          width: 12, height: 12, borderRadius: '50%',
+          backgroundColor: color, opacity: dotOpacity,
+          boxShadow: `0 0 ${glowAmount}px rgba(${shadowBase}, 0.9), 0 0 ${glowAmount * 2}px rgba(${shadowBase}, 0.4)`,
+          transition: 'opacity 0.8s ease, box-shadow 0.8s ease',
         }} />
-      )}
+        <Handle type="source" position={Position.Right} style={centeredHandle} />
+        <Handle type="target" position={Position.Left} style={centeredHandle} />
+      </div>
 
-      {/* Seed star dot */}
-      <div style={{
-        width: 12, height: 12, borderRadius: '50%',
-        backgroundColor: color, opacity: dotOpacity,
-        boxShadow: `0 0 ${glowAmount}px rgba(${shadowBase}, 0.9), 0 0 ${glowAmount * 2}px rgba(${shadowBase}, 0.4)`,
-        transition: 'opacity 0.8s ease, box-shadow 0.8s ease',
-      }} />
+      <p style={{ color }} className="mt-2 text-xs whitespace-nowrap">{data.text}</p>
 
-      {/* Prompt label — always visible, seeds are the session anchors */}
-      <p style={{ color }} className="mt-2 text-xs whitespace-nowrap">
-        {data.text}
-      </p>
-
-      {/* 0/2 progress dots */}
       <div className="flex gap-1 mt-2 justify-center">
         {[0, 1].map((i) => (
           <div key={i} style={{
@@ -205,8 +201,6 @@ function SeedNode({ data }: NodeProps<InterlinkedNode>) {
         ))}
       </div>
 
-      <Handle type="source" position={Position.Right} style={centeredHandle} />
-      <Handle type="target" position={Position.Left} style={centeredHandle} />
     </div>
   )
 }
@@ -270,35 +264,39 @@ function StarNode({ data, id }: NodeProps<InterlinkedNode>) {
   // Committed star
   return (
     <div
-      className="relative flex flex-col items-center"
+      style={{ position: 'relative' }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* Pulse ring when selected as link source */}
-      {data.selectedForBridge && (
-        <div className="animate-ping absolute" style={{
+      {/* Dot wrapper — handles live here */}
+      <div style={{ position: 'relative', width: 10, height: 10 }}>
+        {data.selectedForBridge && (
+          <div className="animate-ping absolute" style={{
+            width: 10, height: 10, borderRadius: '50%',
+            backgroundColor: color, opacity: 0.4,
+          }} />
+        )}
+        <div style={{
           width: 10, height: 10, borderRadius: '50%',
-          backgroundColor: color, opacity: 0.4,
+          backgroundColor: color, opacity,
+          boxShadow: `0 0 ${glowAmount}px ${color}, 0 0 ${glowAmount * 2}px ${color}60`,
+          transition: 'opacity 0.6s ease, box-shadow 0.6s ease, background-color 0.6s ease',
         }} />
-      )}
+        <Handle type="target" position={Position.Left} style={centeredHandle} />
+        <Handle type="source" position={Position.Right} style={centeredHandle} />
+      </div>
 
-      {/* Star dot */}
-      <div style={{
-        width: 10, height: 10, borderRadius: '50%',
-        backgroundColor: color, opacity,
-        boxShadow: `0 0 ${glowAmount}px ${color}, 0 0 ${glowAmount * 2}px ${color}60`,
-        transition: 'opacity 0.6s ease, box-shadow 0.6s ease, background-color 0.6s ease',
-      }} />
-
-      {/* Text — only on hover or when selected as link source */}
+      {/* Text absolutely positioned — appears below without moving the dot */}
       {(hovered || data.selectedForBridge) && (
-        <p style={{ color, opacity: 0.9 }} className="mt-2 text-xs whitespace-nowrap max-w-48 text-center">
+        <p style={{
+          position: 'absolute',
+          top: 16, left: '50%', transform: 'translateX(-50%)',
+          color, opacity: 0.9, fontSize: '12px',
+          whiteSpace: 'nowrap', pointerEvents: 'none',
+        }}>
           {data.text}
         </p>
       )}
-
-      <Handle type="target" position={Position.Left} style={centeredHandle} />
-      <Handle type="source" position={Position.Right} style={centeredHandle} />
     </div>
   )
 }
@@ -315,6 +313,8 @@ function CanvasInner() {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
   const [snappingEdges, setSnappingEdges] = useState<SnappingEdge[]>([])
   const { screenToFlowPosition, getViewport } = useReactFlow()
+  const isEditingNode = nodes.some(n => n.data.justCreated)
+
 
   // Recompute all derived node data whenever edges change.
   // Also reveals seed2 once seed1 reaches activated state (subtreeCount >= 2).
@@ -425,6 +425,7 @@ function CanvasInner() {
         onNodeContextMenu={onNodeContextMenu} onEdgeContextMenu={onEdgeContextMenu}
         nodeTypes={nodeTypes}
         zoomOnDoubleClick={false}
+        panOnDrag={!isEditingNode}
         nodeOrigin={[0.5, 0.5]}
         nodesConnectable={false}
         elementsSelectable={false}
