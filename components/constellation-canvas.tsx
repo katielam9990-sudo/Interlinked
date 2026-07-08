@@ -81,13 +81,13 @@ function getNodeColor(data: InterlinkedNodeData): string {
     return data.seedId === 'seed1' ? '#f5c842' : '#8faa8b'
   }
   if (data.seedId === 'seed1') {
-    if (data.depth <= 1) return '#f5ead0'
-    if (data.depth === 2) return '#f2dda8'
-    return 'ede9e0'
+    if (data.depth <= 1) return '#f3cd86'
+    if (data.depth === 2) return '#f0dbac'
+    return '#ede9e0'
   }
   if (data.seedId === 'seed2') {
-    if (data.depth <= 1) return '#dce8d9'
-    if (data.depth === 2) return '#cce0c9'
+    if (data.depth <= 1) return '#a0b99a'
+    if (data.depth === 2) return '#ccefc7'
     return '#e4e8e2'
   }
   return '#ede9e0'
@@ -243,7 +243,7 @@ function StarNode({ data, id }: NodeProps<InterlinkedNode>) {
       setNodes(nds => nds.map(n => n.id === id ? {
         ...n,
         draggable: true,
-        data: { ...n.data, justCreated: false, size: getStarSize(n.data.charCount) }
+        data: { ...n.data, justCreated: false, size: getStarSize(n.data.charCount as number) }
       } : n))
     } else if (e.key === 'Escape') {
       setNodes(nds => nds.filter(n => n.id !== id))
