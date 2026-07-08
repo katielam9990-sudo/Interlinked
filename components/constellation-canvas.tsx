@@ -13,6 +13,8 @@ import {
   type Edge,
   type NodeTypes,
   type NodeProps,
+  getStraightPath,
+  type EdgeProps,
 } from '@xyflow/react'
 import '@xyflow/react/dist/style.css'
 
@@ -33,6 +35,7 @@ type InterlinkedNodeData = {
   selectedForBridge: boolean
   justCreated: boolean
   [key: string]: unknown
+  size?: number
 }
 
 type InterlinkedNode = Node<InterlinkedNodeData>
@@ -137,6 +140,12 @@ function getSubtreeCount(id: string, nodes: InterlinkedNode[], edges: Interlinke
   return count
 }
 
+function getStarSize(charCount: number): number {
+  if (charCount >= 75) return 14
+  if (charCount >= 50) return 12
+  if (charCount >= 40) return 10
+  return 9
+}
 
 // ─── Shared styles ────────────────────────────────────────────────────────────
 
@@ -212,6 +221,15 @@ function SeedNode({ data }: NodeProps<InterlinkedNode>) {
 function StarNode({ data, id }: NodeProps<InterlinkedNode>) {
   const { setNodes } = useReactFlow()
   const [hovered, setHovered] = useState(false)
+  const [displaySize, setDisplaySize] = useState(8)
+
+  // After commit, animate dot from 8px base up to its final content-length size
+  useEffect(() => {
+    if (!data.justCreated && data.size) {
+      const frame = requestAnimationFrame(() => setDisplaySize(data.size!))
+      return () => cancelAnimationFrame(frame)
+    }
+  }, [data.justCreated, data.size])
 
   const onChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const text = e.target.value
@@ -222,7 +240,11 @@ function StarNode({ data, id }: NodeProps<InterlinkedNode>) {
 
   const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && data.isValid) {
-      setNodes(nds => nds.map(n => n.id === id ? { ...n, draggable: true, data: { ...n.data, justCreated: false } } : n))
+      setNodes(nds => nds.map(n => n.id === id ? {
+        ...n,
+        draggable: true,
+        data: { ...n.data, justCreated: false, size: getStarSize(n.data.charCount) }
+      } : n))
     } else if (e.key === 'Escape') {
       setNodes(nds => nds.filter(n => n.id !== id))
     }
@@ -236,18 +258,17 @@ function StarNode({ data, id }: NodeProps<InterlinkedNode>) {
   const glowAmount = data.glowState === 'none' ? 5 : data.glowState === 'soft' ? 15 : 30
   const opacity = data.isValid ? 1 : 0.4
 
-  // Editing state — just created, waiting for input
   if (data.justCreated) {
     return (
       <div className="relative flex flex-col items-center">
         <div style={{
-          width: 10, height: 10, borderRadius: '50%',
+          width: 8, height: 8, borderRadius: '50%',
           backgroundColor: color, opacity: 0.4, boxShadow: `0 0 8px ${color}`,
         }} />
         <input
           autoFocus value={data.text}
           onChange={onChange} onKeyDown={onKeyDown} onBlur={onBlur}
-          onMouseDown={(e) => e.stopPropagation()}  
+          onMouseDown={(e) => e.stopPropagation()}
           placeholder="Type an idea..."
           style={{
             marginTop: 8, background: 'transparent', border: 'none',
@@ -262,36 +283,40 @@ function StarNode({ data, id }: NodeProps<InterlinkedNode>) {
     )
   }
 
-  // Committed star
+  // Wrapper is immediately the final size so React Flow's bounding box is correct.
+  // The visual dot starts at 8px and animates up via displaySize.
+  const finalSize = data.size ?? 9
   return (
     <div
       style={{ position: 'relative' }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* Dot wrapper — handles live here */}
-      <div style={{ position: 'relative', width: 10, height: 10 }}>
+      <div style={{ position: 'relative', width: finalSize, height: finalSize }}>
         {data.selectedForBridge && (
           <div className="animate-ping absolute" style={{
-            width: 10, height: 10, borderRadius: '50%',
+            width: finalSize, height: finalSize, borderRadius: '50%',
             backgroundColor: color, opacity: 0.4,
           }} />
         )}
         <div style={{
-          width: 10, height: 10, borderRadius: '50%',
+          position: 'absolute',
+          top: '50%', left: '50%',
+          width: displaySize, height: displaySize,
+          transform: 'translate(-50%, -50%)',
+          borderRadius: '50%',
           backgroundColor: color, opacity,
           boxShadow: `0 0 ${glowAmount}px ${color}, 0 0 ${glowAmount * 2}px ${color}60`,
-          transition: 'opacity 0.6s ease, box-shadow 0.6s ease, background-color 0.6s ease',
+          transition: 'width 0.5s ease, height 0.5s ease, opacity 0.6s ease, box-shadow 0.6s ease',
         }} />
         <Handle type="target" position={Position.Left} style={centeredHandle} />
         <Handle type="source" position={Position.Right} style={centeredHandle} />
       </div>
 
-      {/* Text absolutely positioned — appears below without moving the dot. */}
       {(hovered || data.selectedForBridge) && (
         <p style={{
           position: 'absolute',
-          top: 16, left: '50%', transform: 'translateX(-50%)',
+          top: finalSize + 6, left: '50%', transform: 'translateX(-50%)',
           color, opacity: 0.9, fontSize: '12px',
           whiteSpace: 'nowrap', pointerEvents: 'none',
         }}>
@@ -302,6 +327,19 @@ function StarNode({ data, id }: NodeProps<InterlinkedNode>) {
   )
 }
 
+function InterlinkedEdge({ sourceX, sourceY, targetX, targetY, style }: EdgeProps) {
+  const [edgePath] = getStraightPath({ sourceX, sourceY, targetX, targetY })
+  return (
+    <>
+      {/* Invisible 20px hit area — makes right-click actually catchable */}
+      <path d={edgePath} strokeWidth={20} stroke="transparent" fill="none" />
+      {/* Visible line */}
+      <path d={edgePath} style={style} fill="none" />
+    </>
+  )
+}
+
+const edgeTypes = { interlinked: InterlinkedEdge }
 const nodeTypes: NodeTypes = { seed: SeedNode, star: StarNode }
 
 
@@ -358,7 +396,7 @@ function CanvasInner() {
       data: {
         text: '', nodeType: 'star', seedId: null, depth: 1, glowState: 'none',
         charCount: 0, isValid: false, subtreeCount: 0, activated: false,
-        visible: true, selectedForBridge: false, justCreated: true,
+        visible: true, selectedForBridge: false, justCreated: true, size: 8,
       }
     }])
   }, [screenToFlowPosition, setNodes])
@@ -433,13 +471,14 @@ function CanvasInner() {
         onNodeClick={onNodeClick} onPaneClick={onPaneClick}
         onNodeContextMenu={onNodeContextMenu} onEdgeContextMenu={onEdgeContextMenu}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         zoomOnDoubleClick={false}
         panOnDrag={!isEditingNode}
         nodeOrigin={[0.5, 0.5]}
         nodesConnectable={false}
         elementsSelectable={false}
         defaultEdgeOptions={{
-          type: 'straight',
+          type: 'interlinked',
           style: {
             stroke: '#4f5d4e',
             strokeWidth: 1.5,
