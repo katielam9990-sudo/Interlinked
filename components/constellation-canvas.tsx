@@ -1,6 +1,6 @@
 "use client"
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState, useRef } from 'react'
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -309,6 +309,8 @@ const nodeTypes: NodeTypes = { seed: SeedNode, star: StarNode }
 function CanvasInner() {
   const [nodes, setNodes, onNodesChange] = useNodesState<InterlinkedNode>(initialNodes)
   const [edges, setEdges, onEdgesChange] = useEdgesState<InterlinkedEdge>(initialEdges)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const [pendingAnchorPos, setPendingAnchorPos] = useState({ x: 0, y: 0 })
   const [pendingSourceId, setPendingSourceId] = useState<string | null>(null)
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
   const [snappingEdges, setSnappingEdges] = useState<SnappingEdge[]>([])
@@ -362,11 +364,11 @@ function CanvasInner() {
   }, [screenToFlowPosition, setNodes])
 
   // Click node → two-click linking: first click selects source, second click completes edge
-  const onNodeClick = useCallback((_: React.MouseEvent, node: InterlinkedNode) => {
+  const onNodeClick = useCallback((e: React.MouseEvent, node: InterlinkedNode) => {
     if (node.data.justCreated) return
     if (pendingSourceId === null) {
-      const { x: vx, y: vy, zoom } = getViewport()
-      setMousePos({ x: node.position.x * zoom + vx, y: node.position.y * zoom + vy })
+      const rect = containerRef.current?.getBoundingClientRect()
+      if (rect) setPendingAnchorPos({ x: e.clientX - rect.left, y: e.clientY - rect.top })
       setPendingSourceId(node.id)
       setNodes(nds => nds.map(n =>
         n.id === node.id ? { ...n, data: { ...n.data, selectedForBridge: true } } : n
@@ -376,6 +378,11 @@ function CanvasInner() {
       setPendingSourceId(null)
       setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, selectedForBridge: false } })))
     } else {
+      // If user clicked star → seed, flip so seed is always the source
+      const pendingNode = nodes.find(n => n.id === pendingSourceId)
+      const shouldFlip = node.data.nodeType === 'seed' && pendingNode?.data.nodeType !== 'seed'
+      const finalSource = shouldFlip ? node.id : pendingSourceId
+      const finalTarget = shouldFlip ? pendingSourceId : node.id
       // Complete connection, add snap flash
       setEdges(eds => [...eds, { id: `${pendingSourceId}-${node.id}`, source: pendingSourceId, target: node.id }])
       setSnappingEdges(prev => [...prev, { sourceId: pendingSourceId, targetId: node.id, createdAt: Date.now() }])
@@ -416,6 +423,7 @@ function CanvasInner() {
 
   return (
     <div
+      ref={containerRef}
       style={{ width: '100%', height: '100%', position: 'relative' }}
       onDoubleClick={onDoubleClick}
       onMouseMove={onMouseMove}
@@ -463,7 +471,8 @@ function CanvasInner() {
           const { x, y } = toScreen(pendingSourceNode.position)
           return (
             <line
-              x1={x} y1={y} x2={mousePos.x} y2={mousePos.y}
+              x1={pendingAnchorPos.x} y1={pendingAnchorPos.y}
+              x2={mousePos.x} y2={mousePos.y}
               stroke={pendingColor} strokeWidth={1.5}
               style={{ filter: `drop-shadow(0 0 6px ${pendingColor})` }}
             />
