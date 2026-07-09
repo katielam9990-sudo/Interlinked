@@ -365,6 +365,7 @@ function CanvasInner() {
   const [pendingSourceId, setPendingSourceId] = useState<string | null>(null)
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
   const [snappingEdges, setSnappingEdges] = useState<SnappingEdge[]>([])
+  const [gateMessage, setGateMessage] = useState<string | null>(null)
   const { screenToFlowPosition, getViewport } = useReactFlow()
   const isEditingNode = nodes.some(n => n.data.justCreated)
 
@@ -433,6 +434,14 @@ function CanvasInner() {
       const clickedDepth = getDepth(node.id, nodes, edges)
       const pendingHasSeed = getSeedId(pendingSourceId!, nodes, edges) !== null
       const clickedHasSeed = getSeedId(node.id, nodes, edges) !== null
+
+      if (!pendingHasSeed && !clickedHasSeed) {
+        setPendingSourceId(null)
+        setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, selectedForBridge: false } })))
+        setGateMessage("connect your idea to a seed first")
+        setTimeout(() => setGateMessage(null), 2500)
+        return
+      }
 
       const shouldFlip =
         (node.data.nodeType === 'seed' && pendingNode?.data.nodeType !== 'seed') ||
@@ -521,15 +530,18 @@ function CanvasInner() {
         }}
       />
 
-      {canvasPrompt && (
+      {(gateMessage ?? canvasPrompt) && (
         <div style={{
           position: 'absolute', top: '10%', left: '50%', transform: 'translateX(-50%)',
-          color: '#e4eade', opacity: 0.45, fontSize: '13px',
+          fontSize: '13px',
           fontFamily: "'Plus Jakarta Sans', sans-serif",
           whiteSpace: 'nowrap', pointerEvents: 'none',
           letterSpacing: '0.04em',
+          transition: 'color 0.4s ease, opacity 0.4s ease',
+          color: gateMessage ? '#e4c89e' : '#e4eade',
+          opacity: gateMessage ? 0.7 : 0.45,
         }}>
-          {canvasPrompt}
+          {gateMessage ?? canvasPrompt}
         </div>
       )}
 
