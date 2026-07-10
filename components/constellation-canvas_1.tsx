@@ -37,6 +37,8 @@ type InterlinkedNodeData = {
   visible: boolean
   selectedForBridge: boolean
   justCreated: boolean
+  pendingKind: NodeKind | null      // color-bubble selection during 'creating' state
+  bridgeUnlocked: boolean           // snapshot of isBridgeReady, taken at creation
   [key: string]: unknown
   size?: number
 }
@@ -63,6 +65,27 @@ const CompletionCtx = createContext<{ litIds: Set<string>; phase: CompletionPhas
 const SEED1_COLOR = '#f5c842'   // orange
 const SEED2_COLOR = '#8faa8b'   // green
 const BRIDGE_COLOR = '#d4d0e8'  // lavender
+const NEUTRAL_COLOR = 'rgba(228, 234, 222, 0.55)'  // undecided-kind dot/underline while typing
+
+function kindColor(kind: NodeKind): string {
+  if (kind === 'seed1') return SEED1_COLOR
+  if (kind === 'seed2') return SEED2_COLOR
+  return BRIDGE_COLOR
+}
+
+// Tiny hover-tooltip text for each bubble — deliberately never says "bridge"
+function kindLabel(kind: NodeKind): string {
+  if (kind === 'seed1') return 'this side'
+  if (kind === 'seed2') return 'other side'
+  return 'connects both'
+}
+
+
+// ─── Nudge context ────────────────────────────────────────────────────────────
+// Lets node components (rendered inside React Flow's own tree) trigger the
+// ambient gate-message overlay owned by CanvasInner, without prop drilling.
+
+const NudgeCtx = createContext<{ nudge: (msg: string) => void }>({ nudge: () => {} })
 
 
 // ─── Initial data ─────────────────────────────────────────────────────────────
@@ -75,6 +98,7 @@ const initialNodes: InterlinkedNode[] = [
       depth: 0, glowState: 'none', charCount: 0, isValid: false,
       subtreeCount: 0, activated: false, visible: true,
       selectedForBridge: false, justCreated: false,
+      pendingKind: null, bridgeUnlocked: false,
     }
   },
   {
@@ -84,6 +108,7 @@ const initialNodes: InterlinkedNode[] = [
       depth: 0, glowState: 'none', charCount: 0, isValid: false,
       subtreeCount: 0, activated: false, visible: false,
       selectedForBridge: false, justCreated: false,
+      pendingKind: null, bridgeUnlocked: false,
     }
   }
 ]
@@ -395,6 +420,137 @@ function StarNode({ data, id }: NodeProps<InterlinkedNode>) {
 }
 
 
+// ─── CreatingNode ─────────────────────────────────────────────────────────────
+// Double-click opens this immediately — a text input with small color bubbles
+// beside it. The user types, picks a bubble (swappable until Enter), and only
+// then can commit. On commit it becomes a real 'star' or 'bridge' node.
+
+function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
+  const { setNodes } = useReactFlow()
+  const { nudge } = useContext(NudgeCtx)
+  const [hoveredKind, setHoveredKind] = useState<NodeKind | null>(null)
+
+  const onChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const text = e.target.value
+    setNodes(nds => nds.map(n =>
+      n.id === id ? { ...n, data: { ...n.data, text, charCount: text.length, isValid: text.length >= 10 } } : n
+    ))
+  }, [id, setNodes])
+
+  const selectKind = useCallback((kind: NodeKind) => {
+    setNodes(nds => nds.map(n => n.id === id ? { ...n, data: { ...n.data, pendingKind: kind } } : n))
+  }, [id, setNodes])
+
+  const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      if (!data.pendingKind) {
+        nudge('pick a color first')
+        return
+      }
+      if (!data.isValid) return
+      const kind = data.pendingKind
+      setNodes(nds => nds.map(n => {
+        if (n.id !== id) return n
+        if (kind === 'bridge') {
+          return {
+            ...n, type: 'bridge', draggable: true,
+            data: { ...n.data, nodeType: 'bridge', justCreated: false, pendingKind: null, size: 13 }
+          }
+        }
+        return {
+          ...n, type: 'star', draggable: true,
+          data: {
+            ...n.data, nodeType: 'star', lockedSeed: kind as SeedSide,
+            justCreated: false, pendingKind: null, size: getStarSize(n.data.charCount as number)
+          }
+        }
+      }))
+    } else if (e.key === 'Escape') {
+      setNodes(nds => nds.filter(n => n.id !== id))
+    }
+  }, [id, data.isValid, data.pendingKind, setNodes, nudge])
+
+  const onBlur = useCallback(() => {
+    if (!data.isValid) setNodes(nds => nds.filter(n => n.id !== id))
+  }, [id, data.isValid, setNodes])
+
+  const color = data.pendingKind ? kindColor(data.pendingKind) : NEUTRAL_COLOR
+  const bubbleKinds: NodeKind[] = ['seed1', 'seed2', ...(data.bridgeUnlocked ? (['bridge'] as NodeKind[]) : [])]
+
+  // Same column layout StarNode/BridgeNode use for justCreated — keeps the
+  // dot anchored exactly at the double-click point. The bubble strip is an
+  // absolutely-positioned overlay beside the input, so it doesn't shift that
+  // anchor or the node's centering.
+  return (
+    <div className="relative flex flex-col items-center">
+      <div style={{
+        width: 8, height: 8, borderRadius: '50%',
+        backgroundColor: color, opacity: data.pendingKind ? 0.6 : 0.35,
+        boxShadow: `0 0 8px ${color}`,
+        transition: 'background-color 0.2s ease, opacity 0.2s ease',
+      }} />
+      <div style={{ position: 'relative', marginTop: 8 }}>
+        <input
+          autoFocus value={data.text}
+          onChange={onChange} onKeyDown={onKeyDown} onBlur={onBlur}
+          onMouseDown={(e) => e.stopPropagation()}
+          placeholder="What's the thought?"
+          style={{
+            background: 'transparent', border: 'none',
+            borderBottom: `1px solid ${color}`, color: '#e4eade',
+            font: "13px 'Plus Jakarta Sans', sans-serif",
+            outline: 'none', width: 190, textAlign: 'center',
+            transition: 'border-color 0.2s ease',
+          }}
+        />
+
+        {/* Color bubbles — beside the input. Minimal: no menu chrome, just dots. */}
+        <div style={{
+          position: 'absolute', left: '100%', top: '50%',
+          transform: 'translateY(-50%)', marginLeft: 10,
+          display: 'flex', gap: 6, alignItems: 'center',
+        }}>
+          {bubbleKinds.map(kind => (
+            <div
+              key={kind}
+              style={{ position: 'relative' }}
+              onMouseEnter={() => setHoveredKind(kind)}
+              onMouseLeave={() => setHoveredKind(prev => (prev === kind ? null : prev))}
+            >
+              <button
+                type="button"
+                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }}
+                onClick={() => selectKind(kind)}
+                style={{
+                  width: 11, height: 11, borderRadius: '50%', padding: 0, cursor: 'pointer',
+                  backgroundColor: kindColor(kind),
+                  border: data.pendingKind === kind ? '1.5px solid #e4eade' : '1.5px solid transparent',
+                  boxShadow: `0 0 6px ${kindColor(kind)}`,
+                  opacity: data.pendingKind && data.pendingKind !== kind ? 0.4 : 1,
+                  transition: 'opacity 0.15s ease, border-color 0.15s ease',
+                }}
+              />
+              {hoveredKind === kind && (
+                <p style={{
+                  position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)',
+                  margin: 0, fontSize: 10, color: '#e4eade', opacity: 0.75,
+                  whiteSpace: 'nowrap', pointerEvents: 'none',
+                }}>
+                  {kindLabel(kind)}
+                </p>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <Handle type="target" position={Position.Left} style={centeredHandle} />
+      <Handle type="source" position={Position.Right} style={centeredHandle} />
+    </div>
+  )
+}
+
+
 // ─── BridgeNode ───────────────────────────────────────────────────────────────
 // The connector node. Takes user input like a star, but is lavender and may
 // link across both sides. Only created once bridge criteria are met.
@@ -552,7 +708,7 @@ function InterlinkedEdge({ sourceX, sourceY, targetX, targetY, style }: EdgeProp
 }
 
 const edgeTypes = { interlinked: InterlinkedEdge }
-const nodeTypes: NodeTypes = { seed: SeedNode, star: StarNode, bridge: BridgeNode }
+const nodeTypes: NodeTypes = { seed: SeedNode, star: StarNode, bridge: BridgeNode, creating: CreatingNode }
 
 
 // ─── Canvas inner ─────────────────────────────────────────────────────────────
@@ -566,13 +722,18 @@ function CanvasInner() {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
   const [snappingEdges, setSnappingEdges] = useState<SnappingEdge[]>([])
   const [gateMessage, setGateMessage] = useState<string | null>(null)
-  const [menu, setMenu] = useState<{ screen: { x: number; y: number }; flow: { x: number; y: number } } | null>(null)
   const [completionPhase, setCompletionPhase] = useState<CompletionPhase>('idle')
   const [litNodeIds, setLitNodeIds] = useState<Set<string>>(new Set())
   const [completionFlashEdges, setCompletionFlashEdges] = useState<SnappingEdge[]>([])
   const completionTriggered = useRef(false)
   const { screenToFlowPosition, getViewport, fitView } = useReactFlow()
   const isEditingNode = nodes.some(n => n.data.justCreated)
+
+  // Gentle nudge — reuses the ambient gateMessage slot, e.g. "pick a color first"
+  const nudge = useCallback((msg: string) => {
+    setGateMessage(msg)
+    setTimeout(() => setGateMessage(null), 2000)
+  }, [])
 
 
   // Recompute all derived node data whenever edges change.
@@ -739,54 +900,55 @@ function CanvasInner() {
     getSeedId(id, nodes, edges) !== null, [nodes, edges])
 
 
-  // Create a node of the chosen kind at a flow position
-  const createNode = useCallback((kind: NodeKind, flow: { x: number; y: number }) => {
-    if (kind === 'bridge') {
-      setNodes(nds => [...nds, {
-        id: uid(), type: 'bridge', position: flow, draggable: false,
-        data: {
-          text: '', nodeType: 'bridge', seedId: null, lockedSeed: null, depth: 0,
-          glowState: 'bright', charCount: 0, isValid: false, subtreeCount: 0,
-          activated: false, visible: true, selectedForBridge: false, justCreated: true, size: 8,
-        }
-      }])
-    } else {
-      setNodes(nds => [...nds, {
-        id: uid(), type: 'star', position: flow, draggable: false,
-        data: {
-          text: '', nodeType: 'star', seedId: null, lockedSeed: kind, depth: 1,
-          glowState: 'none', charCount: 0, isValid: false, subtreeCount: 0,
-          activated: false, visible: true, selectedForBridge: false, justCreated: true, size: 8,
-        }
-      }])
-    }
+  // Fast path: before seed2 exists there's only one possible kind (seed1's
+  // idea), so skip the bubble choice entirely and create it directly.
+  const createNode = useCallback((kind: SeedSide, flow: { x: number; y: number }) => {
+    setNodes(nds => [...nds, {
+      id: uid(), type: 'star', position: flow, draggable: false,
+      data: {
+        text: '', nodeType: 'star', seedId: null, lockedSeed: kind, depth: 1,
+        glowState: 'none', charCount: 0, isValid: false, subtreeCount: 0,
+        activated: false, visible: true, selectedForBridge: false, justCreated: true,
+        pendingKind: null, bridgeUnlocked: false, size: 8,
+      }
+    }])
   }, [setNodes])
+
+  // General path: text input opens immediately, color bubbles sit beside it.
+  // The kind (and therefore the node's eventual type/color) isn't decided
+  // until a bubble is clicked — see CreatingNode.
+  const createChoiceNode = useCallback((flow: { x: number; y: number }) => {
+    setNodes(nds => [...nds, {
+      id: uid(), type: 'creating', position: flow, draggable: false,
+      data: {
+        text: '', nodeType: 'star', seedId: null, lockedSeed: null, depth: 1,
+        glowState: 'none', charCount: 0, isValid: false, subtreeCount: 0,
+        activated: false, visible: true, selectedForBridge: false, justCreated: true,
+        pendingKind: null, bridgeUnlocked: isBridgeReady, size: 8,
+      }
+    }])
+  }, [setNodes, isBridgeReady])
 
 
   // Double-click empty canvas:
   //   — before seed2 exists → create a seed1 idea directly (only one option)
-  //   — otherwise → open the type menu (orange / green / + lavender when unlocked)
+  //   — otherwise → open the input + color-bubble strip in place
   const onDoubleClick = useCallback((e: React.MouseEvent) => {
     if (completionPhase !== 'idle') return
     if (!(e.target as Element).classList.contains('react-flow__pane')) return
     const flow = screenToFlowPosition({ x: e.clientX, y: e.clientY })
-    const rect = containerRef.current?.getBoundingClientRect()
-    const screen = rect
-      ? { x: e.clientX - rect.left, y: e.clientY - rect.top }
-      : { x: e.clientX, y: e.clientY }
 
     if (!seed2Visible) {
       createNode('seed1', flow)
       return
     }
-    setMenu({ screen, flow })
-  }, [completionPhase, screenToFlowPosition, seed2Visible, createNode])
+    createChoiceNode(flow)
+  }, [completionPhase, screenToFlowPosition, seed2Visible, createNode, createChoiceNode])
 
 
   // Click node → two-click linking with side-locking enforcement
   const onNodeClick = useCallback((e: React.MouseEvent, node: InterlinkedNode) => {
     if (node.data.justCreated) return
-    setMenu(null)
 
     if (pendingSourceId === null) {
       const rect = containerRef.current?.getBoundingClientRect()
@@ -872,9 +1034,8 @@ function CanvasInner() {
   }, [pendingSourceId, setNodes, setEdges, nodes, edges, nodeSide, isRooted])
 
 
-  // Click empty canvas → cancel pending connection and close the menu
+  // Click empty canvas → cancel pending connection
   const onPaneClick = useCallback(() => {
-    setMenu(null)
     if (pendingSourceId === null) return
     setPendingSourceId(null)
     setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, selectedForBridge: false } })))
@@ -937,16 +1098,10 @@ function CanvasInner() {
     ? { color: '#e4c89e', opacity: 0.7 }
     : { color: '#e4eade', opacity: 0.45 }
 
-  // Menu options — seed1 always, seed2 once visible, bridge once unlocked
-  const menuOptions: { kind: NodeKind; label: string; color: string }[] = [
-    { kind: 'seed1', label: 'Idea · this side', color: SEED1_COLOR },
-    { kind: 'seed2', label: 'Idea · other side', color: SEED2_COLOR },
-    ...(isBridgeReady ? [{ kind: 'bridge' as NodeKind, label: 'Bridge · connect both', color: BRIDGE_COLOR }] : []),
-  ]
-
 
   return (
     <CompletionCtx.Provider value={{ litIds: litNodeIds, phase: completionPhase }}>
+    <NudgeCtx.Provider value={{ nudge }}>
       <div
         ref={containerRef}
         style={{ width: '100%', height: '100%', position: 'relative' }}
@@ -974,53 +1129,6 @@ function CanvasInner() {
             },
           }}
         />
-
-        {/* Type menu — appears on double-click once both sides are in play */}
-        {menu && completionPhase === 'idle' && (
-          <div
-            onClick={(e) => e.stopPropagation()}
-            onDoubleClick={(e) => e.stopPropagation()}
-            style={{
-              position: 'absolute',
-              left: menu.screen.x,
-              top: menu.screen.y,
-              transform: 'translate(-4px, -4px)',
-              zIndex: 30,
-              display: 'flex', flexDirection: 'column', gap: 2,
-              padding: 6,
-              background: 'rgba(18, 20, 28, 0.92)',
-              border: '1px solid rgba(228, 234, 222, 0.12)',
-              borderRadius: 10,
-              backdropFilter: 'blur(8px)',
-              boxShadow: '0 8px 30px rgba(0,0,0,0.45)',
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
-            }}
-          >
-            {menuOptions.map(opt => (
-              <button
-                key={opt.kind}
-                onClick={() => { createNode(opt.kind, menu.flow); setMenu(null) }}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 9,
-                  padding: '7px 12px 7px 9px',
-                  background: 'transparent', border: 'none', borderRadius: 7,
-                  cursor: 'pointer', color: '#e4eade',
-                  fontSize: 12.5, whiteSpace: 'nowrap', textAlign: 'left',
-                  transition: 'background 0.15s ease',
-                }}
-                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(228,234,222,0.06)')}
-                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
-              >
-                <span style={{
-                  width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
-                  backgroundColor: opt.color,
-                  boxShadow: `0 0 8px ${opt.color}`,
-                }} />
-                {opt.label}
-              </button>
-            ))}
-          </div>
-        )}
 
         {/* Ambient canvas prompt — hides during completion */}
         {overlayText && completionPhase === 'idle' && (
@@ -1142,6 +1250,7 @@ function CanvasInner() {
           </div>
         )}
       </div>
+    </NudgeCtx.Provider>
     </CompletionCtx.Provider>
   )
 }
@@ -1158,4 +1267,3 @@ export function ConstellationCanvas() {
     </div>
   )
 }
-
