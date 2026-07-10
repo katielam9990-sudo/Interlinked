@@ -21,10 +21,13 @@ import '@xyflow/react/dist/style.css'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
+type SeedSide = 'seed1' | 'seed2'
+
 type InterlinkedNodeData = {
   text: string
   nodeType: 'seed' | 'star' | 'bridge'
-  seedId: 'seed1' | 'seed2' | null
+  seedId: SeedSide | null          // derived from edges (source of truth once rooted)
+  lockedSeed: SeedSide | null      // chosen at creation — locks an idea to one side
   depth: number
   glowState: 'none' | 'soft' | 'bright'
   charCount: number
@@ -42,6 +45,7 @@ type InterlinkedNode = Node<InterlinkedNodeData>
 type InterlinkedEdge = Edge<{ dissolving?: boolean }>
 type SnappingEdge = { sourceId: string; targetId: string; createdAt: number }
 type CompletionPhase = 'idle' | 'pulsing' | 'done'
+type NodeKind = 'seed1' | 'seed2' | 'bridge'
 
 
 // ─── Completion context ───────────────────────────────────────────────────────
@@ -54,13 +58,20 @@ const CompletionCtx = createContext<{ litIds: Set<string>; phase: CompletionPhas
 })
 
 
+// ─── Palette ──────────────────────────────────────────────────────────────────
+
+const SEED1_COLOR = '#f5c842'   // orange
+const SEED2_COLOR = '#8faa8b'   // green
+const BRIDGE_COLOR = '#d4d0e8'  // lavender
+
+
 // ─── Initial data ─────────────────────────────────────────────────────────────
 
 const initialNodes: InterlinkedNode[] = [
   {
     id: 'seed1', type: 'seed', position: { x: 200, y: 300 },
     data: {
-      text: "A belief you've released...", nodeType: 'seed', seedId: 'seed1',
+      text: "A belief you've released...", nodeType: 'seed', seedId: 'seed1', lockedSeed: 'seed1',
       depth: 0, glowState: 'none', charCount: 0, isValid: false,
       subtreeCount: 0, activated: false, visible: true,
       selectedForBridge: false, justCreated: false,
@@ -69,7 +80,7 @@ const initialNodes: InterlinkedNode[] = [
   {
     id: 'seed2', type: 'seed', position: { x: 600, y: 300 },
     data: {
-      text: "What replaced it...", nodeType: 'seed', seedId: 'seed2',
+      text: "What replaced it...", nodeType: 'seed', seedId: 'seed2', lockedSeed: 'seed2',
       depth: 0, glowState: 'none', charCount: 0, isValid: false,
       subtreeCount: 0, activated: false, visible: false,
       selectedForBridge: false, justCreated: false,
@@ -86,18 +97,21 @@ function uid() {
   return Math.random().toString(36).slice(2, 9)
 }
 
-// Single source of truth for node color — used by node components + SVG overlay
+// Single source of truth for node color — used by node components + SVG overlay.
+// Falls back to lockedSeed so an idea shows its side color from birth, before
+// it has been connected (and therefore before seedId is derived).
 function getNodeColor(data: InterlinkedNodeData): string {
-  if (data.nodeType === 'bridge') return '#d4d0e8'
+  if (data.nodeType === 'bridge') return BRIDGE_COLOR
   if (data.nodeType === 'seed') {
-    return data.seedId === 'seed1' ? '#f5c842' : '#8faa8b'
+    return data.seedId === 'seed1' ? SEED1_COLOR : SEED2_COLOR
   }
-  if (data.seedId === 'seed1') {
+  const side = data.seedId ?? data.lockedSeed
+  if (side === 'seed1') {
     if (data.depth <= 1) return '#fde4b7'
     if (data.depth === 2) return '#f8e8c6'
     return '#ede9e0'
   }
-  if (data.seedId === 'seed2') {
+  if (side === 'seed2') {
     if (data.depth <= 1) return '#d4f4cc'
     if (data.depth === 2) return '#dbfdd5'
     return '#e4e8e2'
@@ -130,12 +144,15 @@ function getDepth(id: string, nodes: InterlinkedNode[], edges: InterlinkedEdge[]
   }
 }
 
-function getSeedId(id: string, nodes: InterlinkedNode[], edges: InterlinkedEdge[]): 'seed1' | 'seed2' | null {
+function getSeedId(id: string, nodes: InterlinkedNode[], edges: InterlinkedEdge[]): SeedSide | null {
   let currentId = id
+  const guard = new Set<string>()
   while (true) {
+    if (guard.has(currentId)) return null
+    guard.add(currentId)
     const node = nodes.find(n => n.id === currentId)
     if (!node) return null
-    if (node.data.nodeType === 'seed') return node.id as 'seed1' | 'seed2'
+    if (node.data.nodeType === 'seed') return node.id as SeedSide
     const parentEdge = edges.find(e => e.target === currentId)
     if (!parentEdge) return null
     currentId = parentEdge.source
@@ -147,6 +164,7 @@ function getSubtreeCount(id: string, nodes: InterlinkedNode[], edges: Interlinke
   if (!node || node.data.nodeType !== 'seed') return 0
   let count = 0
   for (const n of nodes) {
+    if (n.data.nodeType !== 'star') continue
     if (getSeedId(n.id, nodes, edges) === id && n.data.isValid) count++
   }
   return count
@@ -184,7 +202,6 @@ function SeedNode({ id, data }: NodeProps<InterlinkedNode>) {
   const { litIds } = useContext(CompletionCtx)
   const isLit = litIds.has(id)
 
-  // Pulse dot outward when the completion wave reaches this node
   useEffect(() => {
     if (isLit) {
       setPulseScale(1.45)
@@ -321,7 +338,7 @@ function StarNode({ data, id }: NodeProps<InterlinkedNode>) {
           autoFocus value={data.text}
           onChange={onChange} onKeyDown={onKeyDown} onBlur={onBlur}
           onMouseDown={(e) => e.stopPropagation()}
-          placeholder="Type an idea..."
+          placeholder={data.lockedSeed === 'seed2' ? 'A thought for this side...' : 'A thought for this side...'}
           style={{
             marginTop: 8, background: 'transparent', border: 'none',
             borderBottom: `1px solid ${color}`, color: '#e4eade',
@@ -335,8 +352,6 @@ function StarNode({ data, id }: NodeProps<InterlinkedNode>) {
     )
   }
 
-  // Wrapper is immediately the final size so React Flow's bounding box is correct.
-  // The visual dot starts at 8px and animates up via displaySize.
   const finalSize = data.size ?? 9
   return (
     <div
@@ -381,16 +396,18 @@ function StarNode({ data, id }: NodeProps<InterlinkedNode>) {
 
 
 // ─── BridgeNode ───────────────────────────────────────────────────────────────
-// The final node — connects to both seed trees to complete the constellation.
+// The connector node. Takes user input like a star, but is lavender and may
+// link across both sides. Only created once bridge criteria are met.
 
 function BridgeNode({ id, data }: NodeProps<InterlinkedNode>) {
+  const { setNodes } = useReactFlow()
   const [hovered, setHovered] = useState(false)
   const [displaySize, setDisplaySize] = useState(8)
   const [pulseScale, setPulseScale] = useState(1)
   const { litIds } = useContext(CompletionCtx)
   const isLit = litIds.has(id)
 
-  // Bridge pulses slightly more dramatically — it's the origin of the wave
+  // Bridge pulses a touch more dramatically — it's the origin of the wave
   useEffect(() => {
     if (isLit) {
       setPulseScale(1.6)
@@ -406,8 +423,63 @@ function BridgeNode({ id, data }: NodeProps<InterlinkedNode>) {
     }
   }, [data.justCreated, data.size])
 
+  const onChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const text = e.target.value
+    setNodes(nds => nds.map(n =>
+      n.id === id ? { ...n, data: { ...n.data, text, charCount: text.length, isValid: text.length >= 10 } } : n
+    ))
+  }, [id, setNodes])
+
+  const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && data.isValid) {
+      setNodes(nds => nds.map(n => n.id === id ? {
+        ...n,
+        draggable: true,
+        data: { ...n.data, justCreated: false, size: 13 }
+      } : n))
+    } else if (e.key === 'Escape') {
+      setNodes(nds => nds.filter(n => n.id !== id))
+    }
+  }, [id, data.isValid, setNodes])
+
+  const onBlur = useCallback(() => {
+    if (!data.isValid) setNodes(nds => nds.filter(n => n.id !== id))
+  }, [id, data.isValid, setNodes])
+
+  const color = BRIDGE_COLOR
+
+  if (data.justCreated) {
+    return (
+      <div className="relative flex flex-col items-center">
+        <div style={{
+          position: 'absolute',
+          width: 20, height: 20, borderRadius: '50%',
+          border: '1px solid rgba(212, 208, 232, 0.4)',
+          top: 4, left: '50%', transform: 'translateX(-50%)',
+        }} />
+        <div style={{
+          width: 8, height: 8, borderRadius: '50%',
+          backgroundColor: color, opacity: 0.5, boxShadow: `0 0 10px ${color}`,
+        }} />
+        <input
+          autoFocus value={data.text}
+          onChange={onChange} onKeyDown={onKeyDown} onBlur={onBlur}
+          onMouseDown={(e) => e.stopPropagation()}
+          placeholder="The idea that connects both sides..."
+          style={{
+            marginTop: 10, background: 'transparent', border: 'none',
+            borderBottom: `1px solid ${color}`, color: '#e4eade',
+            font: "13px 'Plus Jakarta Sans', sans-serif",
+            outline: 'none', width: 220, textAlign: 'center',
+          }}
+        />
+        <Handle type="target" position={Position.Left} style={centeredHandle} />
+        <Handle type="source" position={Position.Right} style={centeredHandle} />
+      </div>
+    )
+  }
+
   const finalSize = data.size ?? 13
-  const color = '#d4d0e8'
   const glowAmount = hovered ? 28 : 14
   const effectiveGlow = isLit ? glowAmount + 22 : glowAmount
 
@@ -417,7 +489,7 @@ function BridgeNode({ id, data }: NodeProps<InterlinkedNode>) {
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* Outer ring — visually distinguishes the bridge node */}
+      {/* Outer ring — visually marks the bridge as the connector node */}
       <div style={{
         position: 'absolute',
         width: finalSize + 12, height: finalSize + 12,
@@ -454,10 +526,10 @@ function BridgeNode({ id, data }: NodeProps<InterlinkedNode>) {
         <p style={{
           position: 'absolute',
           top: finalSize + 8, left: '50%', transform: 'translateX(-50%)',
-          color, opacity: 0.75, fontSize: '12px',
+          color, opacity: 0.8, fontSize: '12px',
           whiteSpace: 'nowrap', pointerEvents: 'none',
         }}>
-          {data.text || 'What connects them?'}
+          {data.text}
         </p>
       )}
     </div>
@@ -494,6 +566,7 @@ function CanvasInner() {
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 })
   const [snappingEdges, setSnappingEdges] = useState<SnappingEdge[]>([])
   const [gateMessage, setGateMessage] = useState<string | null>(null)
+  const [menu, setMenu] = useState<{ screen: { x: number; y: number }; flow: { x: number; y: number } } | null>(null)
   const [completionPhase, setCompletionPhase] = useState<CompletionPhase>('idle')
   const [litNodeIds, setLitNodeIds] = useState<Set<string>>(new Set())
   const [completionFlashEdges, setCompletionFlashEdges] = useState<SnappingEdge[]>([])
@@ -503,7 +576,7 @@ function CanvasInner() {
 
 
   // Recompute all derived node data whenever edges change.
-  // Also reveals seed2 once seed1 reaches activated state (subtreeCount >= 2).
+  // Reveals seed2 once seed1 reaches activated state (subtreeCount >= 2).
   useEffect(() => {
     setNodes(nds => {
       const updated = nds.map(node => {
@@ -528,8 +601,9 @@ function CanvasInner() {
 
 
   // ── Completion pulse ────────────────────────────────────────────────────────
-  // BFS wave from the bridge node outward. Each layer lights up 350ms after the
-  // previous, and completion flash edges strobe along each newly-lit connection.
+  // BFS wave from the bridge node outward. The zoom-out runs FIRST and settles;
+  // only then does the wave travel, so the SVG strobe lines don't jump around
+  // while the viewport is still animating.
   const triggerCompletionPulse = useCallback((
     originId: string,
     allNodes: InterlinkedNode[],
@@ -538,8 +612,11 @@ function CanvasInner() {
     completionTriggered.current = true
     setCompletionPhase('pulsing')
 
-    // Zoom out to reveal the whole constellation as the wave travels
-    fitView({ duration: 1200, padding: 0.35 })
+    const ZOOM_DURATION = 900
+    const PULSE_START_DELAY = ZOOM_DURATION + 150   // let the zoom fully settle first
+
+    // Zoom out to reveal the whole constellation
+    fitView({ duration: ZOOM_DURATION, padding: 0.35 })
 
     // BFS: build layer-by-layer order from the origin
     const layers: string[][] = [[originId]]
@@ -567,14 +644,12 @@ function CanvasInner() {
 
     layers.forEach((layer, layerIndex) => {
       setTimeout(() => {
-        // Light up this layer's nodes
         setLitNodeIds(prev => {
           const next = new Set(prev)
           layer.forEach(id => next.add(id))
           return next
         })
 
-        // Strobe the edges that connect this layer to the previous one
         if (layerIndex > 0) {
           const prevLayer = layers[layerIndex - 1]
           const newFlashEdges: SnappingEdge[] = []
@@ -597,33 +672,37 @@ function CanvasInner() {
             setCompletionFlashEdges(prev => [...prev, ...newFlashEdges])
           }
         }
-      }, layerIndex * LAYER_DELAY)
+      }, PULSE_START_DELAY + layerIndex * LAYER_DELAY)
     })
 
-    // Transition to 'done' after all layers have lit + a brief hold
-    setTimeout(() => setCompletionPhase('done'), layers.length * LAYER_DELAY + 900)
+    setTimeout(
+      () => setCompletionPhase('done'),
+      PULSE_START_DELAY + layers.length * LAYER_DELAY + 900
+    )
   }, [fitView])
 
 
-  // Watch for the moment the bridge node connects to both seed chains
+  // Watch for the moment a bridge node connects to both seed chains
   useEffect(() => {
     if (completionPhase !== 'idle' || completionTriggered.current) return
-    const bridgeNode = nodes.find(n => n.data.nodeType === 'bridge')
-    if (!bridgeNode) return
+    const bridgeNodes = nodes.filter(n => n.data.nodeType === 'bridge' && !n.data.justCreated)
+    if (bridgeNodes.length === 0) return
 
-    const connectedSeedIds = new Set<string>()
-    for (const edge of edges) {
-      const otherId =
-        edge.source === bridgeNode.id ? edge.target :
-        edge.target === bridgeNode.id ? edge.source : null
-      if (otherId) {
-        const seedId = getSeedId(otherId, nodes, edges)
-        if (seedId) connectedSeedIds.add(seedId)
+    for (const bridgeNode of bridgeNodes) {
+      const connectedSeedIds = new Set<string>()
+      for (const edge of edges) {
+        const otherId =
+          edge.source === bridgeNode.id ? edge.target :
+          edge.target === bridgeNode.id ? edge.source : null
+        if (otherId) {
+          const seedId = getSeedId(otherId, nodes, edges)
+          if (seedId) connectedSeedIds.add(seedId)
+        }
       }
-    }
-
-    if (connectedSeedIds.size >= 2) {
-      triggerCompletionPulse(bridgeNode.id, nodes, edges)
+      if (connectedSeedIds.size >= 2) {
+        triggerCompletionPulse(bridgeNode.id, nodes, edges)
+        return
+      }
     }
   }, [nodes, edges, completionPhase, triggerCompletionPulse])
 
@@ -635,58 +714,80 @@ function CanvasInner() {
   }, [pendingSourceId])
 
 
-  // Computed: both seed trees have depth ≥ 2 and there's no bridge yet
+  // Seed2 becomes visible once seed1 is activated
+  const seed2Visible = !!nodes.find(n => n.id === 'seed2')?.data.visible
+
+  // Bridge access: both seeds activated AND at least one side has reached depth 2
   const isBridgeReady = (() => {
     const seed1 = nodes.find(n => n.id === 'seed1')
     const seed2 = nodes.find(n => n.id === 'seed2')
     if (!seed1?.data.activated || !seed2?.data.activated) return false
-    if (nodes.some(n => n.data.nodeType === 'bridge')) return false  // one bridge at a time
-    const seed1HasDepth2 = nodes.some(n =>
-      n.data.nodeType === 'star' &&
-      getSeedId(n.id, nodes, edges) === 'seed1' &&
-      getDepth(n.id, nodes, edges) >= 2
+    return nodes.some(n =>
+      n.data.nodeType === 'star' && getDepth(n.id, nodes, edges) >= 2
     )
-    const seed2HasDepth2 = nodes.some(n =>
-      n.data.nodeType === 'star' &&
-      getSeedId(n.id, nodes, edges) === 'seed2' &&
-      getDepth(n.id, nodes, edges) >= 2
-    )
-    return seed1HasDepth2 && seed2HasDepth2
   })()
 
 
-  // Double-click empty canvas:
-  //   — if bridge-ready → place the bridge node (no text entry needed)
-  //   — otherwise → create a new star with text input
-  const onDoubleClick = useCallback((e: React.MouseEvent) => {
-    if (!(e.target as Element).classList.contains('react-flow__pane')) return
-    const position = screenToFlowPosition({ x: e.clientX, y: e.clientY })
+  // The side a node belongs to: seeds → own id, bridge → null (spans), idea → its locked side
+  const nodeSide = useCallback((node: InterlinkedNode): SeedSide | null => {
+    if (node.data.nodeType === 'seed') return node.id as SeedSide
+    if (node.data.nodeType === 'bridge') return null
+    return node.data.lockedSeed ?? getSeedId(node.id, nodes, edges)
+  }, [nodes, edges])
 
-    if (isBridgeReady) {
+  const isRooted = useCallback((id: string) =>
+    getSeedId(id, nodes, edges) !== null, [nodes, edges])
+
+
+  // Create a node of the chosen kind at a flow position
+  const createNode = useCallback((kind: NodeKind, flow: { x: number; y: number }) => {
+    if (kind === 'bridge') {
       setNodes(nds => [...nds, {
-        id: uid(), type: 'bridge', position, draggable: true,
+        id: uid(), type: 'bridge', position: flow, draggable: false,
         data: {
-          text: '', nodeType: 'bridge', seedId: null, depth: 0, glowState: 'bright',
-          charCount: 0, isValid: true, subtreeCount: 0, activated: false,
-          visible: true, selectedForBridge: false, justCreated: false, size: 13,
+          text: '', nodeType: 'bridge', seedId: null, lockedSeed: null, depth: 0,
+          glowState: 'bright', charCount: 0, isValid: false, subtreeCount: 0,
+          activated: false, visible: true, selectedForBridge: false, justCreated: true, size: 8,
         }
       }])
     } else {
       setNodes(nds => [...nds, {
-        id: uid(), type: 'star', position, draggable: false,
+        id: uid(), type: 'star', position: flow, draggable: false,
         data: {
-          text: '', nodeType: 'star', seedId: null, depth: 1, glowState: 'none',
-          charCount: 0, isValid: false, subtreeCount: 0, activated: false,
-          visible: true, selectedForBridge: false, justCreated: true, size: 8,
+          text: '', nodeType: 'star', seedId: null, lockedSeed: kind, depth: 1,
+          glowState: 'none', charCount: 0, isValid: false, subtreeCount: 0,
+          activated: false, visible: true, selectedForBridge: false, justCreated: true, size: 8,
         }
       }])
     }
-  }, [screenToFlowPosition, setNodes, isBridgeReady])
+  }, [setNodes])
 
 
-  // Click node → two-click linking: first click selects source, second completes edge
+  // Double-click empty canvas:
+  //   — before seed2 exists → create a seed1 idea directly (only one option)
+  //   — otherwise → open the type menu (orange / green / + lavender when unlocked)
+  const onDoubleClick = useCallback((e: React.MouseEvent) => {
+    if (completionPhase !== 'idle') return
+    if (!(e.target as Element).classList.contains('react-flow__pane')) return
+    const flow = screenToFlowPosition({ x: e.clientX, y: e.clientY })
+    const rect = containerRef.current?.getBoundingClientRect()
+    const screen = rect
+      ? { x: e.clientX - rect.left, y: e.clientY - rect.top }
+      : { x: e.clientX, y: e.clientY }
+
+    if (!seed2Visible) {
+      createNode('seed1', flow)
+      return
+    }
+    setMenu({ screen, flow })
+  }, [completionPhase, screenToFlowPosition, seed2Visible, createNode])
+
+
+  // Click node → two-click linking with side-locking enforcement
   const onNodeClick = useCallback((e: React.MouseEvent, node: InterlinkedNode) => {
     if (node.data.justCreated) return
+    setMenu(null)
+
     if (pendingSourceId === null) {
       const rect = containerRef.current?.getBoundingClientRect()
       if (rect) setPendingAnchorPos({ x: e.clientX - rect.left, y: e.clientY - rect.top })
@@ -694,51 +795,86 @@ function CanvasInner() {
       setNodes(nds => nds.map(n =>
         n.id === node.id ? { ...n, data: { ...n.data, selectedForBridge: true } } : n
       ))
-    } else if (pendingSourceId === node.id) {
+      return
+    }
+
+    if (pendingSourceId === node.id) {
       // Clicked same node again — cancel
       setPendingSourceId(null)
       setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, selectedForBridge: false } })))
-    } else {
-      const pendingNode = nodes.find(n => n.id === pendingSourceId)
-      const pendingDepth = getDepth(pendingSourceId!, nodes, edges)
-      const clickedDepth = getDepth(node.id, nodes, edges)
-      const pendingHasSeed = getSeedId(pendingSourceId!, nodes, edges) !== null
-      const clickedHasSeed = getSeedId(node.id, nodes, edges) !== null
-      const pendingIsBridge = pendingNode?.data.nodeType === 'bridge'
-      const clickedIsBridge = node.data.nodeType === 'bridge'
+      return
+    }
 
-      // Gate: two unrooted, non-bridge stars can't connect to each other
-      if (!pendingHasSeed && !clickedHasSeed && !pendingIsBridge && !clickedIsBridge) {
-        setPendingSourceId(null)
-        setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, selectedForBridge: false } })))
-        setGateMessage("connect your idea to a seed first")
-        setTimeout(() => setGateMessage(null), 2500)
-        return
-      }
+    const P = nodes.find(n => n.id === pendingSourceId)
+    if (!P) { setPendingSourceId(null); return }
+    const C = node
 
-      // Edge direction: always flows from shallower (seed-side) to deeper
-      const shouldFlip =
-        (node.data.nodeType === 'seed' && pendingNode?.data.nodeType !== 'seed') ||
-        (!pendingHasSeed && clickedHasSeed && !pendingIsBridge) ||
-        (pendingHasSeed && clickedHasSeed && pendingDepth > clickedDepth)
+    const pIsBridge = P.data.nodeType === 'bridge'
+    const cIsBridge = C.data.nodeType === 'bridge'
+    const pIsSeed = P.data.nodeType === 'seed'
+    const cIsSeed = C.data.nodeType === 'seed'
 
-      const finalSource = shouldFlip ? node.id : pendingSourceId!
-      const finalTarget = shouldFlip ? pendingSourceId! : node.id
+    const clearPending = () =>
+      setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, selectedForBridge: false } })))
 
-      setEdges(eds => [...eds, {
-        id: `${finalSource}-${finalTarget}`,
-        source: finalSource,
-        target: finalTarget,
-      }])
+    const commit = (finalSource: string, finalTarget: string) => {
+      setEdges(eds => [...eds, { id: `${finalSource}-${finalTarget}-${uid()}`, source: finalSource, target: finalTarget }])
       setSnappingEdges(prev => [...prev, { sourceId: finalSource, targetId: finalTarget, createdAt: Date.now() }])
       setPendingSourceId(null)
-      setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, selectedForBridge: false } })))
+      clearPending()
     }
-  }, [pendingSourceId, setNodes, setEdges, nodes, edges])
+
+    // Bridge involved — it may span the two sides
+    if (pIsBridge || cIsBridge) {
+      // Non-bridge end is the source, bridge is the target (bridge sits downstream)
+      if (pIsBridge && cIsBridge) {
+        commit(pendingSourceId!, node.id)
+      } else if (cIsBridge) {
+        commit(pendingSourceId!, node.id)
+      } else {
+        commit(node.id, pendingSourceId!)
+      }
+      return
+    }
+
+    // Neither is a bridge — enforce same-side locking
+    const sideP = nodeSide(P)
+    const sideC = nodeSide(C)
+
+    if (sideP && sideC && sideP !== sideC) {
+      setPendingSourceId(null)
+      clearPending()
+      setGateMessage("only a bridge can link the two sides")
+      setTimeout(() => setGateMessage(null), 2500)
+      return
+    }
+
+    // Same side but both floating (neither rooted to its seed) — nudge to root first
+    if (!pIsSeed && !cIsSeed && !isRooted(P.id) && !isRooted(C.id)) {
+      setPendingSourceId(null)
+      clearPending()
+      setGateMessage("connect this to its seed first")
+      setTimeout(() => setGateMessage(null), 2500)
+      return
+    }
+
+    // Direction: always flows shallow (seed-side) → deep
+    const pDepth = getDepth(P.id, nodes, edges)
+    const cDepth = getDepth(C.id, nodes, edges)
+    const shouldFlip =
+      (cIsSeed && !pIsSeed) ||
+      (!isRooted(P.id) && isRooted(C.id)) ||
+      (isRooted(P.id) && isRooted(C.id) && pDepth > cDepth)
+
+    const finalSource = shouldFlip ? node.id : pendingSourceId!
+    const finalTarget = shouldFlip ? pendingSourceId! : node.id
+    commit(finalSource, finalTarget)
+  }, [pendingSourceId, setNodes, setEdges, nodes, edges, nodeSide, isRooted])
 
 
-  // Click empty canvas → cancel pending connection
+  // Click empty canvas → cancel pending connection and close the menu
   const onPaneClick = useCallback(() => {
+    setMenu(null)
     if (pendingSourceId === null) return
     setPendingSourceId(null)
     setNodes(nds => nds.map(n => ({ ...n, data: { ...n.data, selectedForBridge: false } })))
@@ -767,16 +903,30 @@ function CanvasInner() {
   const pendingSourceNode = nodes.find(n => n.id === pendingSourceId)
   const pendingColor = pendingSourceNode ? getNodeColor(pendingSourceNode.data) : '#e4eade'
 
+  // Is there a bridge that hasn't yet reached both sides?
+  const hasUnspannedBridge = (() => {
+    const bridges = nodes.filter(n => n.data.nodeType === 'bridge' && !n.data.justCreated)
+    if (bridges.length === 0) return false
+    return bridges.some(b => {
+      const sides = new Set<string>()
+      for (const e of edges) {
+        const o = e.source === b.id ? e.target : e.target === b.id ? e.source : null
+        if (o) { const sid = getSeedId(o, nodes, edges); if (sid) sides.add(sid) }
+      }
+      return sides.size < 2
+    })
+  })()
+
   // Ambient canvas prompt — hides during the completion sequence
   const canvasPrompt: string | null = (() => {
     if (completionPhase !== 'idle') return null
     const seed1 = nodes.find(n => n.id === 'seed1')
     const seed2 = nodes.find(n => n.id === 'seed2')
     if (!seed1?.data.activated || !seed2?.data.activated) return null
-    if (isBridgeReady) return "double-click to place the bridge"
+    if (hasUnspannedBridge) return "link the bridge to an idea on each side"
+    if (isBridgeReady) return "a bridge is ready — double-click to place one"
     const hasDepth2 = nodes.some(n =>
-      n.data.nodeType === 'star' &&
-      getDepth(n.id, nodes, edges) >= 2
+      n.data.nodeType === 'star' && getDepth(n.id, nodes, edges) >= 2
     )
     if (hasDepth2) return "what connects these two sides?"
     return "go deeper into your thoughts"
@@ -786,6 +936,13 @@ function CanvasInner() {
   const overlayStyle = gateMessage
     ? { color: '#e4c89e', opacity: 0.7 }
     : { color: '#e4eade', opacity: 0.45 }
+
+  // Menu options — seed1 always, seed2 once visible, bridge once unlocked
+  const menuOptions: { kind: NodeKind; label: string; color: string }[] = [
+    { kind: 'seed1', label: 'Idea · this side', color: SEED1_COLOR },
+    { kind: 'seed2', label: 'Idea · other side', color: SEED2_COLOR },
+    ...(isBridgeReady ? [{ kind: 'bridge' as NodeKind, label: 'Bridge · connect both', color: BRIDGE_COLOR }] : []),
+  ]
 
 
   return (
@@ -817,6 +974,53 @@ function CanvasInner() {
             },
           }}
         />
+
+        {/* Type menu — appears on double-click once both sides are in play */}
+        {menu && completionPhase === 'idle' && (
+          <div
+            onClick={(e) => e.stopPropagation()}
+            onDoubleClick={(e) => e.stopPropagation()}
+            style={{
+              position: 'absolute',
+              left: menu.screen.x,
+              top: menu.screen.y,
+              transform: 'translate(-4px, -4px)',
+              zIndex: 30,
+              display: 'flex', flexDirection: 'column', gap: 2,
+              padding: 6,
+              background: 'rgba(18, 20, 28, 0.92)',
+              border: '1px solid rgba(228, 234, 222, 0.12)',
+              borderRadius: 10,
+              backdropFilter: 'blur(8px)',
+              boxShadow: '0 8px 30px rgba(0,0,0,0.45)',
+              fontFamily: "'Plus Jakarta Sans', sans-serif",
+            }}
+          >
+            {menuOptions.map(opt => (
+              <button
+                key={opt.kind}
+                onClick={() => { createNode(opt.kind, menu.flow); setMenu(null) }}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 9,
+                  padding: '7px 12px 7px 9px',
+                  background: 'transparent', border: 'none', borderRadius: 7,
+                  cursor: 'pointer', color: '#e4eade',
+                  fontSize: 12.5, whiteSpace: 'nowrap', textAlign: 'left',
+                  transition: 'background 0.15s ease',
+                }}
+                onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(228,234,222,0.06)')}
+                onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+              >
+                <span style={{
+                  width: 10, height: 10, borderRadius: '50%', flexShrink: 0,
+                  backgroundColor: opt.color,
+                  boxShadow: `0 0 8px ${opt.color}`,
+                }} />
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Ambient canvas prompt — hides during completion */}
         {overlayText && completionPhase === 'idle' && (
@@ -923,23 +1127,15 @@ function CanvasInner() {
             pointerEvents: 'none',
           }}>
             <p style={{
-              color: '#e4c89e',
-              fontSize: '11px',
-              letterSpacing: '0.22em',
-              opacity: 0.75,
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
-              margin: 0,
-              marginBottom: 14,
+              color: '#e4c89e', fontSize: '11px', letterSpacing: '0.22em',
+              opacity: 0.75, fontFamily: "'Plus Jakarta Sans', sans-serif",
+              margin: 0, marginBottom: 14,
             }}>
               YOUR IDEAS WERE ALWAYS INTERLINKED
             </p>
             <p style={{
-              color: '#d4d0e8',
-              fontSize: '13px',
-              letterSpacing: '0.1em',
-              opacity: 0.45,
-              fontFamily: "'Plus Jakarta Sans', sans-serif",
-              margin: 0,
+              color: BRIDGE_COLOR, fontSize: '13px', letterSpacing: '0.1em',
+              opacity: 0.45, fontFamily: "'Plus Jakarta Sans', sans-serif", margin: 0,
             }}>
               witness them
             </p>
@@ -962,3 +1158,4 @@ export function ConstellationCanvas() {
     </div>
   )
 }
+
