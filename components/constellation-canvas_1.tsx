@@ -47,6 +47,7 @@ type InterlinkedNode = Node<InterlinkedNodeData>
 type InterlinkedEdge = Edge<{ dissolving?: boolean }>
 type SnappingEdge = { sourceId: string; targetId: string; createdAt: number }
 type CompletionPhase = 'idle' | 'pulsing' | 'done'
+type ArrowState = 'hidden' | 'pulsing' | 'seen' | 'dismissed'
 type NodeKind = 'seed1' | 'seed2' | 'bridge'
 
 
@@ -726,6 +727,12 @@ function CanvasInner() {
   const [litNodeIds, setLitNodeIds] = useState<Set<string>>(new Set())
   const [completionFlashEdges, setCompletionFlashEdges] = useState<SnappingEdge[]>([])
   const completionTriggered = useRef(false)
+  const completionBridgeId = useRef<string | null>(null)
+  const [arrowState, setArrowState] = useState<ArrowState>('hidden')
+  const [arrowTextVisible, setArrowTextVisible] = useState(false)
+  const [cardOpen, setCardOpen] = useState(false)
+  const [cardFace, setCardFace] = useState<'front' | 'back'>('front')
+  const [showReplay, setShowReplay] = useState(false)
   const { screenToFlowPosition, getViewport, fitView } = useReactFlow()
   const isEditingNode = nodes.some(n => n.data.justCreated)
 
@@ -768,7 +775,8 @@ function CanvasInner() {
   const triggerCompletionPulse = useCallback((
     originId: string,
     allNodes: InterlinkedNode[],
-    allEdges: InterlinkedEdge[]
+    allEdges: InterlinkedEdge[],
+    onComplete?: () => void
   ) => {
     completionTriggered.current = true
     setCompletionPhase('pulsing')
@@ -837,7 +845,7 @@ function CanvasInner() {
     })
 
     setTimeout(
-      () => setCompletionPhase('done'),
+      () => { setCompletionPhase('done'); onComplete?.() },
       PULSE_START_DELAY + layers.length * LAYER_DELAY + 900
     )
   }, [fitView])
@@ -861,11 +869,32 @@ function CanvasInner() {
         }
       }
       if (connectedSeedIds.size >= 2) {
+        completionBridgeId.current = bridgeNode.id
         triggerCompletionPulse(bridgeNode.id, nodes, edges)
         return
       }
     }
   }, [nodes, edges, completionPhase, triggerCompletionPulse])
+
+
+  // Once the pulse fully settles, reveal the arrow prompt (first time only)
+  useEffect(() => {
+    if (completionPhase === 'done' && arrowState === 'hidden') {
+      const t = setTimeout(() => setArrowState('pulsing'), 600)
+      return () => clearTimeout(t)
+    }
+  }, [completionPhase, arrowState])
+
+  // Replay the BFS pulse without retriggering the arrow/card sequence
+  const handleReplay = useCallback(() => {
+    if (!completionBridgeId.current) return
+    setShowReplay(false)
+    setLitNodeIds(new Set())
+    setCompletionFlashEdges([])
+    triggerCompletionPulse(completionBridgeId.current, nodes, edges, () => {
+      setShowReplay(true)
+    })
+  }, [nodes, edges, triggerCompletionPulse])
 
 
   // Track cursor position — drives the rubber-band line while pending
@@ -934,7 +963,8 @@ function CanvasInner() {
   //   — before seed2 exists → create a seed1 idea directly (only one option)
   //   — otherwise → open the input + color-bubble strip in place
   const onDoubleClick = useCallback((e: React.MouseEvent) => {
-    if (completionPhase !== 'idle') return
+    if (completionPhase === 'pulsing') return
+    if (cardOpen) return
     if (!(e.target as Element).classList.contains('react-flow__pane')) return
     const flow = screenToFlowPosition({ x: e.clientX, y: e.clientY })
 
@@ -1171,6 +1201,22 @@ function CanvasInner() {
                 from { opacity: 0; }
                 to   { opacity: 1; }
               }
+              @keyframes arrow-pulse {
+                0%, 100% { opacity: 0.45; transform: translateX(0); }
+                50%      { opacity: 1;    transform: translateX(5px); }
+              }
+              @keyframes arrow-text-in {
+                from { opacity: 0; transform: translateX(-8px); }
+                to   { opacity: 1; transform: translateX(0); }
+              }
+              @keyframes card-materialize {
+                from { opacity: 0; transform: translate(-50%, -50%) scale(0.88); }
+                to   { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+              }
+              @keyframes dim-in {
+                from { opacity: 0; }
+                to   { opacity: 1; }
+              }
             `}</style>
           </defs>
 
@@ -1225,28 +1271,240 @@ function CanvasInner() {
           })}
         </svg>
 
-        {/* Completion overlay — fades in after all nodes are lit */}
-        {completionPhase === 'done' && (
+        {/* Arrow prompt — top-left corner, appears once after pulse settles */}
+        {arrowState !== 'hidden' && (
+          <div
+            style={{
+              position: 'absolute', top: 24, left: 24, zIndex: 20,
+              display: 'flex', alignItems: 'center', gap: 12,
+              cursor: arrowState !== 'dismissed' ? 'pointer' : 'default',
+              opacity: arrowState === 'dismissed' ? 0.18 : 1,
+              transition: 'opacity 0.8s ease',
+              userSelect: 'none',
+            }}
+            onMouseEnter={() => {
+              if (arrowState === 'pulsing') { setArrowState('seen'); setArrowTextVisible(true) }
+              else if (arrowState === 'seen') { setArrowTextVisible(true) }
+            }}
+            onMouseLeave={() => {
+              setArrowTextVisible(false)
+              if (arrowState === 'seen') setArrowState('dismissed')
+            }}
+            onClick={() => {
+              if (arrowState === 'dismissed') return
+              setCardOpen(true)
+              setCardFace('front')
+              setArrowState('dismissed')
+              setArrowTextVisible(false)
+            }}
+          >
+            <span style={{
+              fontSize: 18, color: BRIDGE_COLOR, lineHeight: 1,
+              animation: arrowState === 'pulsing' ? 'arrow-pulse 1.6s ease-in-out infinite' : 'none',
+              display: 'inline-block',
+            }}>
+              →
+            </span>
+            {arrowTextVisible && (
+              <div style={{
+                display: 'flex', flexDirection: 'column', gap: 3,
+                animation: 'arrow-text-in 0.25s ease forwards',
+              }}>
+                <p style={{
+                  margin: 0, fontSize: 11, letterSpacing: '0.16em',
+                  color: '#e4c89e', fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  opacity: 0.9,
+                }}>
+                  CONGRATULATIONS FOR COMPLETING THE BRIDGE
+                </p>
+                <p style={{
+                  margin: 0, fontSize: 11, letterSpacing: '0.07em',
+                  color: BRIDGE_COLOR, fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  opacity: 0.6,
+                }}>
+                  explore a note from the creator
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Replay button — sits on canvas after card is closed */}
+        {showReplay && !cardOpen && (
+          <button
+            onClick={handleReplay}
+            style={{
+              position: 'absolute', bottom: 24, left: 24, zIndex: 20,
+              background: 'transparent', border: 'none', cursor: 'pointer',
+              padding: 0, display: 'flex', alignItems: 'center', gap: 6,
+            }}
+          >
+            <span style={{
+              fontSize: 11, color: BRIDGE_COLOR, opacity: 0.4,
+              fontFamily: "'Plus Jakarta Sans', sans-serif", letterSpacing: '0.1em',
+            }}>
+              ↺  replay
+            </span>
+          </button>
+        )}
+
+        {/* Dim overlay — only while the card is open */}
+        {cardOpen && (
+          <div
+            style={{
+              position: 'absolute', inset: 0, zIndex: 25,
+              background: 'rgba(5, 5, 15, 0.78)',
+              animation: 'dim-in 0.4s ease forwards',
+            }}
+            onClick={() => { setCardOpen(false); setShowReplay(true) }}
+          />
+        )}
+
+        {/* Creator card — materializes from center when arrow is clicked */}
+        {cardOpen && (
           <div style={{
-            position: 'absolute', inset: 0, zIndex: 20,
-            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-            background: 'radial-gradient(ellipse at center, rgba(10,10,20,0.65) 0%, rgba(5,5,15,0.85) 100%)',
-            animation: 'completion-fade-in 1.8s ease forwards',
-            pointerEvents: 'none',
+            position: 'absolute', top: '50%', left: '50%',
+            zIndex: 30,
+            perspective: '1200px',
+            animation: 'card-materialize 0.55s cubic-bezier(0.34, 1.3, 0.64, 1) forwards',
           }}>
-            <p style={{
-              color: '#e4c89e', fontSize: '11px', letterSpacing: '0.22em',
-              opacity: 0.75, fontFamily: "'Plus Jakarta Sans', sans-serif",
-              margin: 0, marginBottom: 14,
-            }}>
-              YOUR IDEAS WERE ALWAYS INTERLINKED
-            </p>
-            <p style={{
-              color: BRIDGE_COLOR, fontSize: '13px', letterSpacing: '0.1em',
-              opacity: 0.45, fontFamily: "'Plus Jakarta Sans', sans-serif", margin: 0,
-            }}>
-              witness them
-            </p>
+            {/* Return to canvas — fixed to top-right of screen */}
+            <button
+              style={{
+                position: 'fixed', top: 22, right: 24, zIndex: 35,
+                background: 'transparent', border: 'none', cursor: 'pointer',
+                color: '#e4eade', opacity: 0.4,
+                fontSize: 11, letterSpacing: '0.12em',
+                fontFamily: "'Plus Jakarta Sans', sans-serif",
+                transition: 'opacity 0.2s ease',
+              }}
+              onClick={() => { setCardOpen(false); setShowReplay(true) }}
+              onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+              onMouseLeave={e => (e.currentTarget.style.opacity = '0.4')}
+            >
+              ← return to canvas
+            </button>
+
+            {/* Card inner — 3D flip between front (dark) and back (light) */}
+            <div
+              style={{
+                width: 'min(680px, 88vw)',
+                height: 'min(400px, 65vh)',
+                position: 'relative',
+                transformStyle: 'preserve-3d',
+                transform: `rotateY(${cardFace === 'back' ? 180 : 0}deg)`,
+                transition: 'transform 0.65s cubic-bezier(0.4, 0, 0.2, 1)',
+                cursor: cardFace === 'front' ? 'pointer' : 'default',
+              }}
+              onClick={(e) => {
+                e.stopPropagation()
+                if (cardFace === 'front') setCardFace('back')
+              }}
+            >
+              {/* ── Front face ── dark, single word */}
+              <div style={{
+                position: 'absolute', inset: 0,
+                backfaceVisibility: 'hidden',
+                borderRadius: 10,
+                background: 'linear-gradient(145deg, #0e0e1c 0%, #12121f 70%, #0a0a16 100%)',
+                border: '1px solid rgba(212, 208, 232, 0.12)',
+                boxShadow: '0 0 80px rgba(212, 208, 232, 0.06), 0 32px 80px rgba(0,0,0,0.65)',
+                display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center', gap: 18,
+              }}>
+                <p style={{
+                  margin: 0, fontSize: 30, letterSpacing: '0.38em',
+                  color: '#e4eade', fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  fontWeight: 300,
+                }}>
+                  INTERLINKED
+                </p>
+                <p style={{
+                  margin: 0, fontSize: 10, letterSpacing: '0.18em',
+                  color: BRIDGE_COLOR, opacity: 0.4,
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                }}>
+                  tap to open
+                </p>
+              </div>
+
+              {/* ── Back face ── light, creator note, scrollable */}
+              <div style={{
+                position: 'absolute', inset: 0,
+                backfaceVisibility: 'hidden',
+                transform: 'rotateY(180deg)',
+                borderRadius: 10,
+                background: '#f6f3ee',
+                border: '1px solid rgba(200, 195, 180, 0.5)',
+                boxShadow: '0 0 80px rgba(212, 208, 232, 0.06), 0 32px 80px rgba(0,0,0,0.65)',
+                overflow: 'hidden',
+              }}>
+                {/* Scrollable content — stopPropagation so clicks here don't flip the card */}
+                <div
+                  style={{
+                    height: '100%', overflowY: 'auto',
+                    padding: '32px 44px 28px',
+                    boxSizing: 'border-box',
+                    scrollbarWidth: 'thin',
+                    scrollbarColor: 'rgba(0,0,0,0.1) transparent',
+                  }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <p style={{
+                    margin: '0 0 20px', fontSize: 10, letterSpacing: '0.2em',
+                    color: '#a09880', fontFamily: "'Plus Jakarta Sans', sans-serif",
+                    textTransform: 'uppercase',
+                  }}>
+                    A note from the creator
+                  </p>
+                  <p style={{
+                    margin: '0 0 22px', fontSize: 13, lineHeight: 1.75,
+                    color: '#2a2820', fontFamily: "'Plus Jakarta Sans', sans-serif",
+                    fontStyle: 'italic', opacity: 0.55,
+                  }}>
+                    "A belief you've released. What replaced it."
+                  </p>
+                  <p style={{
+                    margin: '0 0 16px', fontSize: 13, lineHeight: 1.82,
+                    color: '#2a2820', fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  }}>
+                    I made this prompt because I kept noticing a pattern in my own thinking — how the thing I let go of and the thing that took its place were never really separate. One made room for the other. The release wasn't an ending; it was a transfer.
+                  </p>
+                  <p style={{
+                    margin: '0 0 16px', fontSize: 13, lineHeight: 1.82,
+                    color: '#2a2820', fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  }}>
+                    I think most of us carry a quiet inventory of abandoned beliefs. We don't talk about them because they feel like failures — things we were wrong about. But they're not failures. They're evidence that something shifted. Something was learned. Something made a path.
+                  </p>
+                  <p style={{
+                    margin: '0 0 28px', fontSize: 13, lineHeight: 1.82,
+                    color: '#2a2820', fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  }}>
+                    The bridge you just built is yours. Whatever you mapped — I hope it showed you that the two sides were always talking, even when you couldn't hear it.
+                  </p>
+                  <p style={{
+                    margin: '0 0 24px', fontSize: 12, letterSpacing: '0.05em',
+                    color: '#a09880', fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  }}>
+                    — Katie
+                  </p>
+                  {/* Flip-back affordance */}
+                  <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                    <button
+                      style={{
+                        background: 'transparent', border: 'none', cursor: 'pointer',
+                        fontSize: 11, letterSpacing: '0.1em', color: '#a09880',
+                        fontFamily: "'Plus Jakarta Sans', sans-serif", padding: 0,
+                        opacity: 0.7,
+                      }}
+                      onClick={(e) => { e.stopPropagation(); setCardFace('front') }}
+                    >
+                      ↩  flip
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </div>
