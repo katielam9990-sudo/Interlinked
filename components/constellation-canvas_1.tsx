@@ -1380,7 +1380,10 @@ function CanvasInner() {
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
           zoomOnDoubleClick={false}
-          panOnDrag={!isEditingNode}
+          panOnDrag={!isEditingNode && cameraStage === 'zoomedOut'}
+          zoomOnScroll={cameraStage === 'zoomedOut'}
+          zoomOnPinch={cameraStage === 'zoomedOut'}
+          panOnScroll={cameraStage === 'zoomedOut'}
           nodeOrigin={[0.5, 0.5]}
           nodesConnectable={false}
           elementsSelectable={false}
