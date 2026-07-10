@@ -37,6 +37,7 @@ type InterlinkedNodeData = {
   visible: boolean
   selectedForBridge: boolean
   justCreated: boolean
+  originalText?: string             // saved on double-click edit entry; restored on Escape/invalid-blur
   pendingKind: NodeKind | null      // color-bubble selection during 'creating' state
   bridgeUnlocked: boolean           // snapshot of isBridgeReady, taken at creation
   [key: string]: unknown
@@ -334,18 +335,42 @@ function StarNode({ data, id }: NodeProps<InterlinkedNode>) {
   const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && data.isValid) {
       setNodes(nds => nds.map(n => n.id === id ? {
-        ...n,
-        draggable: true,
-        data: { ...n.data, justCreated: false, size: getStarSize(n.data.charCount as number) }
+        ...n, draggable: true,
+        data: { ...n.data, justCreated: false, originalText: undefined, size: getStarSize(n.data.charCount as number) }
       } : n))
     } else if (e.key === 'Escape') {
-      setNodes(nds => nds.filter(n => n.id !== id))
+      if (data.originalText !== undefined) {
+        // Editing an existing node — restore original instead of deleting
+        const orig = data.originalText
+        setNodes(nds => nds.map(n => n.id === id ? {
+          ...n, draggable: true,
+          data: { ...n.data, justCreated: false, originalText: undefined, text: orig, charCount: orig.length, isValid: orig.length >= 10 }
+        } : n))
+      } else {
+        setNodes(nds => nds.filter(n => n.id !== id))
+      }
     }
-  }, [id, data.isValid, setNodes])
+  }, [id, data.isValid, data.originalText, setNodes])
 
   const onBlur = useCallback(() => {
-    if (!data.isValid) setNodes(nds => nds.filter(n => n.id !== id))
-  }, [id, data.isValid, setNodes])
+    if (data.originalText !== undefined) {
+      // Editing — commit if valid, restore if the user wiped the text
+      if (data.isValid) {
+        setNodes(nds => nds.map(n => n.id === id ? {
+          ...n, draggable: true,
+          data: { ...n.data, justCreated: false, originalText: undefined, size: getStarSize(n.data.charCount as number) }
+        } : n))
+      } else {
+        const orig = data.originalText
+        setNodes(nds => nds.map(n => n.id === id ? {
+          ...n, draggable: true,
+          data: { ...n.data, justCreated: false, originalText: undefined, text: orig, charCount: orig.length, isValid: orig.length >= 10 }
+        } : n))
+      }
+    } else {
+      if (!data.isValid) setNodes(nds => nds.filter(n => n.id !== id))
+    }
+  }, [id, data.isValid, data.originalText, setNodes])
 
   const color = getNodeColor(data)
   const baseGlow = data.glowState === 'none' ? 5 : data.glowState === 'soft' ? 15 : 30
@@ -590,18 +615,40 @@ function BridgeNode({ id, data }: NodeProps<InterlinkedNode>) {
   const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && data.isValid) {
       setNodes(nds => nds.map(n => n.id === id ? {
-        ...n,
-        draggable: true,
-        data: { ...n.data, justCreated: false, size: 13 }
+        ...n, draggable: true,
+        data: { ...n.data, justCreated: false, originalText: undefined, size: 13 }
       } : n))
     } else if (e.key === 'Escape') {
-      setNodes(nds => nds.filter(n => n.id !== id))
+      if (data.originalText !== undefined) {
+        const orig = data.originalText
+        setNodes(nds => nds.map(n => n.id === id ? {
+          ...n, draggable: true,
+          data: { ...n.data, justCreated: false, originalText: undefined, text: orig, charCount: orig.length, isValid: orig.length >= 10 }
+        } : n))
+      } else {
+        setNodes(nds => nds.filter(n => n.id !== id))
+      }
     }
-  }, [id, data.isValid, setNodes])
+  }, [id, data.isValid, data.originalText, setNodes])
 
   const onBlur = useCallback(() => {
-    if (!data.isValid) setNodes(nds => nds.filter(n => n.id !== id))
-  }, [id, data.isValid, setNodes])
+    if (data.originalText !== undefined) {
+      if (data.isValid) {
+        setNodes(nds => nds.map(n => n.id === id ? {
+          ...n, draggable: true,
+          data: { ...n.data, justCreated: false, originalText: undefined, size: 13 }
+        } : n))
+      } else {
+        const orig = data.originalText
+        setNodes(nds => nds.map(n => n.id === id ? {
+          ...n, draggable: true,
+          data: { ...n.data, justCreated: false, originalText: undefined, text: orig, charCount: orig.length, isValid: orig.length >= 10 }
+        } : n))
+      }
+    } else {
+      if (!data.isValid) setNodes(nds => nds.filter(n => n.id !== id))
+    }
+  }, [id, data.isValid, data.originalText, setNodes])
 
   const color = BRIDGE_COLOR
 
@@ -730,6 +777,7 @@ function CanvasInner() {
   const completionBridgeId = useRef<string | null>(null)
   const [arrowState, setArrowState] = useState<ArrowState>('hidden')
   const [arrowTextVisible, setArrowTextVisible] = useState(false)
+  const [isArrowHovered, setIsArrowHovered] = useState(false)
   const [cardOpen, setCardOpen] = useState(false)
   const [cardFace, setCardFace] = useState<'front' | 'back'>('front')
   const [showReplay, setShowReplay] = useState(false)
@@ -1064,6 +1112,17 @@ function CanvasInner() {
   }, [pendingSourceId, setNodes, setEdges, nodes, edges, nodeSide, isRooted])
 
 
+  // Double-click existing node → re-enter edit mode (seeds are locked)
+  const onNodeDoubleClick = useCallback((_e: React.MouseEvent, node: InterlinkedNode) => {
+    if (node.data.nodeType === 'seed') return
+    if (node.data.justCreated) return      // already in edit mode
+    if (completionPhase === 'pulsing') return
+    setNodes(nds => nds.map(n => n.id === node.id ? {
+      ...n, draggable: false,
+      data: { ...n.data, justCreated: true, originalText: n.data.text }
+    } : n))
+  }, [setNodes, completionPhase])
+
   // Click empty canvas → cancel pending connection
   const onPaneClick = useCallback(() => {
     if (pendingSourceId === null) return
@@ -1142,6 +1201,7 @@ function CanvasInner() {
           nodes={nodes} edges={edges}
           onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
           onNodeClick={onNodeClick} onPaneClick={onPaneClick}
+          onNodeDoubleClick={onNodeDoubleClick}
           onNodeContextMenu={onNodeContextMenu} onEdgeContextMenu={onEdgeContextMenu}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
@@ -1272,36 +1332,45 @@ function CanvasInner() {
         </svg>
 
         {/* Arrow prompt — top-left corner, appears once after pulse settles */}
+        {/* 'dismissed' stays interactive — user can always come back to it */}
         {arrowState !== 'hidden' && (
           <div
             style={{
               position: 'absolute', top: 24, left: 24, zIndex: 20,
               display: 'flex', alignItems: 'center', gap: 12,
-              cursor: arrowState !== 'dismissed' ? 'pointer' : 'default',
-              opacity: arrowState === 'dismissed' ? 0.18 : 1,
-              transition: 'opacity 0.8s ease',
+              cursor: 'pointer',
+              opacity: arrowState === 'dismissed'
+                ? (isArrowHovered ? 0.75 : 0.2)
+                : 1,
+              transition: 'opacity 0.5s ease',
               userSelect: 'none',
             }}
             onMouseEnter={() => {
-              if (arrowState === 'pulsing') { setArrowState('seen'); setArrowTextVisible(true) }
-              else if (arrowState === 'seen') { setArrowTextVisible(true) }
+              setIsArrowHovered(true)
+              setArrowTextVisible(true)
+              if (arrowState === 'pulsing') setArrowState('seen')
             }}
             onMouseLeave={() => {
+              setIsArrowHovered(false)
               setArrowTextVisible(false)
               if (arrowState === 'seen') setArrowState('dismissed')
             }}
             onClick={() => {
-              if (arrowState === 'dismissed') return
               setCardOpen(true)
               setCardFace('front')
               setArrowState('dismissed')
               setArrowTextVisible(false)
+              setIsArrowHovered(false)
             }}
           >
             <span style={{
-              fontSize: 18, color: BRIDGE_COLOR, lineHeight: 1,
-              animation: arrowState === 'pulsing' ? 'arrow-pulse 1.6s ease-in-out infinite' : 'none',
+              fontSize: 26,
+              fontWeight: 700,
+              color: BRIDGE_COLOR,
+              lineHeight: 1,
               display: 'inline-block',
+              animation: arrowState === 'pulsing' ? 'arrow-pulse 1.6s ease-in-out infinite' : 'none',
+              textShadow: `0 0 10px ${BRIDGE_COLOR}, 0 0 22px rgba(212, 208, 232, 0.5)`,
             }}>
               →
             </span>
