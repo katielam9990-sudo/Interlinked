@@ -40,6 +40,7 @@ type InterlinkedNodeData = {
   originalText?: string             // saved on double-click edit entry; restored on Escape/invalid-blur
   pendingKind: NodeKind | null      // color-bubble selection during 'creating' state
   bridgeUnlocked: boolean           // snapshot of isBridgeReady, taken at creation
+  moved?: boolean                   // seed only — true once user-dragged; freezes it off the fractional layout
   [key: string]: unknown
   size?: number
 }
@@ -50,6 +51,7 @@ type SnappingEdge = { sourceId: string; targetId: string; createdAt: number }
 type CompletionPhase = 'idle' | 'pulsing' | 'done'
 type ArrowState = 'hidden' | 'pulsing' | 'seen' | 'dismissed'
 type NodeKind = 'seed1' | 'seed2' | 'bridge'
+type CameraStage = 'seed1' | 'seed2' | 'zoomedOut'
 
 
 // ─── Completion context ───────────────────────────────────────────────────────
@@ -94,28 +96,47 @@ const NudgeCtx = createContext<{ nudge: (msg: string) => void }>({ nudge: () => 
 
 const initialNodes: InterlinkedNode[] = [
   {
-    id: 'seed1', type: 'seed', position: { x: 200, y: 300 },
+    id: 'seed1', type: 'seed', position: { x: 200, y: 300 }, draggable: false,
     data: {
       text: "A belief you've released...", nodeType: 'seed', seedId: 'seed1', lockedSeed: 'seed1',
       depth: 0, glowState: 'none', charCount: 0, isValid: false,
       subtreeCount: 0, activated: false, visible: true,
       selectedForBridge: false, justCreated: false,
-      pendingKind: null, bridgeUnlocked: false,
+      pendingKind: null, bridgeUnlocked: false, moved: false,
     }
   },
   {
-    id: 'seed2', type: 'seed', position: { x: 600, y: 300 },
+    id: 'seed2', type: 'seed', position: { x: 600, y: 300 }, draggable: false,
     data: {
       text: "What replaced it...", nodeType: 'seed', seedId: 'seed2', lockedSeed: 'seed2',
       depth: 0, glowState: 'none', charCount: 0, isValid: false,
       subtreeCount: 0, activated: false, visible: false,
       selectedForBridge: false, justCreated: false,
-      pendingKind: null, bridgeUnlocked: false,
+      pendingKind: null, bridgeUnlocked: false, moved: false,
     }
   }
 ]
 
 const initialEdges: InterlinkedEdge[] = []
+
+// ─── Seed-reveal camera choreography ─────────────────────────────────────────
+// Seeds sit at fixed fractional corners of the live canvas — deliberately far
+// apart so the zoomed-out reveal reads as two distinct constellations, not a
+// cluster. Fractions (not hardcoded pixels) keep correct margins at any
+// viewport size.
+const SEED_FRACTIONS: Record<SeedSide, { fx: number; fy: number }> = {
+  seed1: { fx: 0.16, fy: 0.22 },
+  seed2: { fx: 0.78, fy: 0.74 },
+}
+const SEED_STAGE_ZOOM = 1.35
+// Zoomed-out is deliberately < 1 so each seed's branching stars have room to
+// breathe once revealed.
+const ZOOMED_OUT_ZOOM = 0.88
+const CAMERA_DURATION = 1100
+// A stage-advancing connection plays its own snap-flash first — give that a
+// beat to register before the scripted pan starts, so the camera doesn't
+// jump mid-animation.
+const CAMERA_PAN_DELAY = 650
 
 
 // ─── Pure utilities ───────────────────────────────────────────────────────────
@@ -467,9 +488,40 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
     ))
   }, [id, setNodes])
 
-  const selectKind = useCallback((kind: NodeKind) => {
-    setNodes(nds => nds.map(n => n.id === id ? { ...n, data: { ...n.data, pendingKind: kind } } : n))
+  // Shared commit path — used by both the Enter key and a decisive bubble
+  // click, so a bubble click that lands the second rooted idea for a seed
+  // runs through the exact same node-commit shape either way.
+  const commitAs = useCallback((kind: NodeKind) => {
+    setNodes(nds => nds.map(n => {
+      if (n.id !== id) return n
+      if (kind === 'bridge') {
+        return {
+          ...n, type: 'bridge', draggable: true,
+          data: { ...n.data, nodeType: 'bridge', justCreated: false, pendingKind: null, size: 13 }
+        }
+      }
+      return {
+        ...n, type: 'star', draggable: true,
+        data: {
+          ...n.data, nodeType: 'star', lockedSeed: kind as SeedSide,
+          justCreated: false, pendingKind: null, size: getStarSize(n.data.charCount as number)
+        }
+      }
+    }))
   }, [id, setNodes])
+
+  // Clicking a bubble commits immediately if the text is already valid — a
+  // decisive action on its own, no follow-up Enter needed. If the text isn't
+  // valid yet, the click just marks the pending choice (shown with a ring)
+  // until the text becomes valid, at which point either Enter or another
+  // click on the (now ring-highlighted) bubble commits it.
+  const selectKind = useCallback((kind: NodeKind) => {
+    if (data.isValid) {
+      commitAs(kind)
+    } else {
+      setNodes(nds => nds.map(n => n.id === id ? { ...n, data: { ...n.data, pendingKind: kind } } : n))
+    }
+  }, [id, data.isValid, commitAs, setNodes])
 
   const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
@@ -478,27 +530,11 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
         return
       }
       if (!data.isValid) return
-      const kind = data.pendingKind
-      setNodes(nds => nds.map(n => {
-        if (n.id !== id) return n
-        if (kind === 'bridge') {
-          return {
-            ...n, type: 'bridge', draggable: true,
-            data: { ...n.data, nodeType: 'bridge', justCreated: false, pendingKind: null, size: 13 }
-          }
-        }
-        return {
-          ...n, type: 'star', draggable: true,
-          data: {
-            ...n.data, nodeType: 'star', lockedSeed: kind as SeedSide,
-            justCreated: false, pendingKind: null, size: getStarSize(n.data.charCount as number)
-          }
-        }
-      }))
+      commitAs(data.pendingKind)
     } else if (e.key === 'Escape') {
       setNodes(nds => nds.filter(n => n.id !== id))
     }
-  }, [id, data.isValid, data.pendingKind, setNodes, nudge])
+  }, [id, data.isValid, data.pendingKind, commitAs, setNodes, nudge])
 
   const onBlur = useCallback(() => {
     if (!data.isValid) setNodes(nds => nds.filter(n => n.id !== id))
@@ -789,7 +825,9 @@ function CanvasInner() {
   const [cardOpen, setCardOpen] = useState(false)
   const [cardFace, setCardFace] = useState<'front' | 'back'>('front')
   const [showReplay, setShowReplay] = useState(false)
-  const { screenToFlowPosition, getViewport, fitView } = useReactFlow()
+  const [cameraStage, setCameraStage] = useState<CameraStage>('seed1')
+  const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 })
+  const { screenToFlowPosition, getViewport, setViewport, fitView } = useReactFlow()
   const isEditingNode = nodes.some(n => n.data.justCreated)
 
   // Gentle nudge — reuses the ambient gateMessage slot, e.g. "pick a color first"
@@ -797,6 +835,121 @@ function CanvasInner() {
     setGateMessage(msg)
     setTimeout(() => setGateMessage(null), 2000)
   }, [])
+
+
+  // ── Seed-reveal camera choreography ─────────────────────────────────────────
+
+  // Measure the live canvas size so seed fractional positions hold correct
+  // margins at any viewport size.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const measure = () => setCanvasSize({ width: el.clientWidth, height: el.clientHeight })
+    measure()
+    const ro = new ResizeObserver(measure)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  // Keep each seed pinned to its fractional corner (and locked from dragging)
+  // until the user actually drags it — which is only possible once
+  // cameraStage reaches 'zoomedOut'. Once moved, it's fully user-controlled
+  // and never snaps back.
+  useEffect(() => {
+    if (!canvasSize.width || !canvasSize.height) return
+    setNodes(nds => nds.map(n => {
+      if (n.data.nodeType !== 'seed') return n
+      const draggable = cameraStage === 'zoomedOut'
+      if (n.data.moved) {
+        return n.draggable === draggable ? n : { ...n, draggable }
+      }
+      const { fx, fy } = SEED_FRACTIONS[n.id as SeedSide]
+      return { ...n, draggable, position: { x: fx * canvasSize.width, y: fy * canvasSize.height } }
+    }))
+  }, [canvasSize, cameraStage, setNodes])
+
+  // Freeze a seed's position once the user drags it (only reachable once
+  // draggable, i.e. once zoomedOut) — no more snapping to the fraction.
+  const onNodeDragStop = useCallback((_e: MouseEvent | TouchEvent, node: InterlinkedNode) => {
+    if (node.data.nodeType === 'seed' && !node.data.moved) {
+      setNodes(nds => nds.map(n => n.id === node.id ? { ...n, data: { ...n.data, moved: true } } : n))
+    }
+  }, [setNodes])
+
+  // A stage only advances once a seed has 2 valid, rooted descendants — at
+  // any depth (reuses getSubtreeCount, which already walks the full chain).
+  // Depends on the whole nodes/edges state so it recomputes after both a
+  // text commit AND a new edge — not just one or the other.
+  useEffect(() => {
+    setCameraStage(prev => {
+      if (prev === 'seed1' && getSubtreeCount('seed1', nodes, edges) >= 2) return 'seed2'
+      if (prev === 'seed2' && getSubtreeCount('seed2', nodes, edges) >= 2) return 'zoomedOut'
+      return prev
+    })
+  }, [nodes, edges])
+
+  // World-point-centering formula: translateX = W/2 - px*Z, translateY = H/2 - py*Z
+  //
+  // For the seed1/seed2 stages, seeds are always exactly at their fractional
+  // corner (they're undraggable then), so we compute that directly from
+  // canvasSize rather than reading node.position — avoids a stale-closure
+  // race against the effect that syncs seed position to canvasSize (both
+  // fire off the same canvasSize change, but this one shouldn't have to wait
+  // for that one to land first). Only zoomedOut needs the live node position,
+  // since seeds become draggable there.
+  const computeCameraTarget = useCallback((stage: CameraStage) => {
+    if (!canvasSize.width || !canvasSize.height) return null
+    const W = canvasSize.width, H = canvasSize.height
+    const centerOn = (px: number, py: number, zoom: number) => ({ x: W / 2 - px * zoom, y: H / 2 - py * zoom, zoom })
+    const fractionalPos = (side: SeedSide) => {
+      const { fx, fy } = SEED_FRACTIONS[side]
+      return { x: fx * W, y: fy * H }
+    }
+    if (stage === 'seed1') { const p = fractionalPos('seed1'); return centerOn(p.x, p.y, SEED_STAGE_ZOOM) }
+    if (stage === 'seed2') { const p = fractionalPos('seed2'); return centerOn(p.x, p.y, SEED_STAGE_ZOOM) }
+    const seed1 = nodes.find(n => n.id === 'seed1')
+    const seed2 = nodes.find(n => n.id === 'seed2')
+    const p1 = seed1?.data.moved ? seed1.position : fractionalPos('seed1')
+    const p2 = seed2?.data.moved ? seed2.position : fractionalPos('seed2')
+    const midX = (p1.x + p2.x) / 2
+    const midY = (p1.y + p2.y) / 2
+    return centerOn(midX, midY, ZOOMED_OUT_ZOOM)
+  }, [nodes, canvasSize])
+
+  // Sets the viewport ONLY at the moment cameraStage actually transitions —
+  // never on every render — so React Flow's normal pan/zoom controls are
+  // never fought once a scripted move has settled (including after
+  // zoomedOut, where the user's own pan/zoom takes over for good).
+  //
+  // Real transitions (not the initial mount) are held back by
+  // CAMERA_PAN_DELAY so the connection that triggered the advance gets to
+  // play its snap-flash before the camera starts moving out from under it.
+  //
+  // pannedStageRef is only updated once the pan actually FIRES (inside the
+  // timeout), not when it's merely scheduled. computeCameraTarget's identity
+  // — and therefore this effect — can legitimately re-run one more time
+  // shortly after a stage change (e.g. the derived-node-data effect updating
+  // `nodes` right after the new edge lands). If we'd marked the stage as
+  // "handled" synchronously, that re-run's cleanup would cancel the pending
+  // timer and the early-return guard would then block ever rescheduling it —
+  // the pan would silently never happen. Rescheduling instead just debounces
+  // to the last relevant change, which is what a stray reschedule should do.
+  const pannedStageRef = useRef<CameraStage | null>(null)
+  useEffect(() => {
+    if (pannedStageRef.current === cameraStage) return
+    const target = computeCameraTarget(cameraStage)
+    if (!target) return
+    if (pannedStageRef.current === null) {
+      pannedStageRef.current = cameraStage
+      setViewport(target, { duration: 0 })
+      return
+    }
+    const t = setTimeout(() => {
+      pannedStageRef.current = cameraStage
+      setViewport(target, { duration: CAMERA_DURATION })
+    }, CAMERA_PAN_DELAY)
+    return () => clearTimeout(t)
+  }, [cameraStage, computeCameraTarget, setViewport])
 
 
   // Recompute all derived node data whenever edges change.
@@ -1175,9 +1328,21 @@ function CanvasInner() {
     })
   })()
 
-  // Ambient canvas prompt — hides during the completion sequence
+  // Ambient canvas prompt — hides during the completion sequence. The camera
+  // teaches the interaction, so copy tracks cameraStage first; once
+  // zoomedOut, the richer bridge-phase cascade below takes over.
   const canvasPrompt: string | null = (() => {
     if (completionPhase !== 'idle') return null
+    if (cameraStage === 'seed1') {
+      return getSubtreeCount('seed1', nodes, edges) === 0
+        ? "double-click the sky to place your first idea for this side"
+        : "one more idea, connected to this seed, to activate it"
+    }
+    if (cameraStage === 'seed2') {
+      return getSubtreeCount('seed2', nodes, edges) === 0
+        ? "now bring an idea to this side"
+        : "one more idea here activates this seed too"
+    }
     const seed1 = nodes.find(n => n.id === 'seed1')
     const seed2 = nodes.find(n => n.id === 'seed2')
     if (!seed1?.data.activated || !seed2?.data.activated) return null
@@ -1187,7 +1352,7 @@ function CanvasInner() {
       n.data.nodeType === 'star' && getDepth(n.id, nodes, edges) >= 2
     )
     if (hasDepth2) return "what connects these two sides?"
-    return "go deeper into your thoughts"
+    return "the bridge phase begins — connect an idea from each side"
   })()
 
   const overlayText = gateMessage ?? canvasPrompt
@@ -1209,7 +1374,7 @@ function CanvasInner() {
           nodes={nodes} edges={edges}
           onNodesChange={onNodesChange} onEdgesChange={onEdgesChange}
           onNodeClick={onNodeClick} onPaneClick={onPaneClick}
-          onNodeDoubleClick={onNodeDoubleClick}
+          onNodeDoubleClick={onNodeDoubleClick} onNodeDragStop={onNodeDragStop}
           onNodeContextMenu={onNodeContextMenu} onEdgeContextMenu={onEdgeContextMenu}
           nodeTypes={nodeTypes}
           edgeTypes={edgeTypes}
