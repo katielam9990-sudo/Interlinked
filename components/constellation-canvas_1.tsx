@@ -1660,7 +1660,7 @@ function CanvasInner() {
               }}>
                 <p style={{
                   margin: 0, fontSize: 30, letterSpacing: '0.38em',
-                  color: '#e4eade', fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  color: '#e4eade', fontFamily: "'Cormorant Garamond', sans-serif",
                   fontWeight: 300,
                 }}>
                   INTERLINKED
