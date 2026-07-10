@@ -301,7 +301,7 @@ function SeedNode({ id, data }: NodeProps<InterlinkedNode>) {
 
 // ─── StarNode ─────────────────────────────────────────────────────────────────
 
-function StarNode({ data, id }: NodeProps<InterlinkedNode>) {
+function StarNode({ data, id, dragging }: NodeProps<InterlinkedNode>) {
   const { setNodes } = useReactFlow()
   const [hovered, setHovered] = useState(false)
   const [displaySize, setDisplaySize] = useState(8)
@@ -435,7 +435,7 @@ function StarNode({ data, id }: NodeProps<InterlinkedNode>) {
         <Handle type="source" position={Position.Right} style={centeredHandle} />
       </div>
 
-      {(hovered || data.selectedForBridge) && (
+      {(hovered || data.selectedForBridge || dragging) && (
         <p style={{
           position: 'absolute',
           top: finalSize + 6, left: '50%', transform: 'translateX(-50%)',
@@ -585,7 +585,7 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
 // The connector node. Takes user input like a star, but is lavender and may
 // link across both sides. Only created once bridge criteria are met.
 
-function BridgeNode({ id, data }: NodeProps<InterlinkedNode>) {
+function BridgeNode({ id, data, dragging }: NodeProps<InterlinkedNode>) {
   const { setNodes } = useReactFlow()
   const [hovered, setHovered] = useState(false)
   const [displaySize, setDisplaySize] = useState(8)
@@ -734,7 +734,7 @@ function BridgeNode({ id, data }: NodeProps<InterlinkedNode>) {
         <Handle type="source" position={Position.Right} style={centeredHandle} />
       </div>
 
-      {hovered && (
+      {hovered || dragging && (
         <p style={{
           position: 'absolute',
           top: finalSize + 8, left: '50%', transform: 'translateX(-50%)',
