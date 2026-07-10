@@ -770,7 +770,7 @@ function BridgeNode({ id, data, dragging }: NodeProps<InterlinkedNode>) {
         <Handle type="source" position={Position.Right} style={centeredHandle} />
       </div>
 
-      {hovered || dragging && (
+      {(hovered || dragging) && (
         <p style={{
           position: 'absolute',
           top: finalSize + 8, left: '50%', transform: 'translateX(-50%)',
@@ -1551,7 +1551,7 @@ function CanvasInner() {
             }}>
               →
             </span>
-            {arrowTextVisible && (
+            {(arrowTextVisible || arrowState === 'pulsing') && (
               <div style={{
                 display: 'flex', flexDirection: 'column', gap: 3,
                 animation: 'arrow-text-in 0.25s ease forwards',
