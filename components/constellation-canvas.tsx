@@ -43,7 +43,7 @@ type InterlinkedEdge = Edge<{ dissolving?: boolean }>
 type SnappingEdge = { sourceId: string; targetId: string; createdAt: number }
 
 
-// ─── Initial data ─────────────────────────────────────────────────────────────
+// ─── Initial data ─────────────────────────────────────────────────────────────-
 
 const initialNodes: InterlinkedNode[] = [
   {

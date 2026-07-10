@@ -2,7 +2,8 @@
 
 import Link from "next/link"
 import { useCallback, useState } from "react"
-import { ConstellationCanvas } from "@/components/constellation-canvas"
+import { ConstellationCanvas } from "@/components/constellation-canvas_1"
+// import { ConstellationCanvas_1 } from "./constellation-canvas_1"
 
 // --- Editable Daily Spark prompt + citations ---
 // Edit these defaults directly to change what loads each day. The panel is also
