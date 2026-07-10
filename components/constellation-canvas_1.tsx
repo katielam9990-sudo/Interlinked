@@ -1555,6 +1555,8 @@ function CanvasInner() {
               <div style={{
                 display: 'flex', flexDirection: 'column', gap: 3,
                 animation: 'arrow-text-in 0.25s ease forwards',
+                marginLeft: arrowState === 'pulsing' ? 8 : 0,
+                transition: 'margin-left 0.3s ease',
               }}>
                 <p style={{
                   margin: 0, fontSize: 11, letterSpacing: '0.16em',
