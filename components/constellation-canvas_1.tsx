@@ -991,10 +991,11 @@ function CanvasInner() {
     setCompletionPhase('pulsing')
 
     const ZOOM_DURATION = 900
-    const PULSE_START_DELAY = ZOOM_DURATION + 150   // let the zoom fully settle first
+    const FIT_VIEW_DELAY = 1500
+    const PULSE_START_DELAY = FIT_VIEW_DELAY + ZOOM_DURATION + 150   // let the zoom fully settle first
 
     // Zoom out to reveal the whole constellation
-    fitView({ duration: ZOOM_DURATION, padding: 0.35 })
+    setTimeout(() => fitView({ duration: ZOOM_DURATION, padding: 0.35 }), FIT_VIEW_DELAY)
 
     // BFS: build layer-by-layer order from the origin
     const layers: string[][] = [[originId]]
