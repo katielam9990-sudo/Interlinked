@@ -1652,14 +1652,14 @@ function CanvasInner() {
                 position: 'absolute', inset: 0,
                 backfaceVisibility: 'hidden',
                 borderRadius: 10,
-                background: 'linear-gradient(145deg, #0e0e1c 0%, #12121f 70%, #0a0a16 100%)',
+                background: 'linear-gradient(145deg, rgba(66, 75, 66, 0.92) 0%, #0d0d1a 100%)',
                 border: '1px solid rgba(212, 208, 232, 0.12)',
                 boxShadow: '0 0 80px rgba(212, 208, 232, 0.06), 0 32px 80px rgba(0,0,0,0.65)',
                 display: 'flex', flexDirection: 'column',
                 alignItems: 'center', justifyContent: 'center', gap: 18,
               }}>
                 <p style={{
-                  margin: 0, fontSize: 30, letterSpacing: '0.38em',
+                  margin: 0, fontSize: 30, letterSpacing: '0.127em',
                   color: '#e4eade', fontFamily: "'Cormorant Garamond', sans-serif",
                   fontWeight: 300,
                 }}>
