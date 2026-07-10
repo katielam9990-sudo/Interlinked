@@ -332,6 +332,10 @@ function StarNode({ data, id }: NodeProps<InterlinkedNode>) {
     ))
   }, [id, setNodes])
 
+  useEffect(() => {
+    if (data.justCreated) setHovered(false)
+  }, [data.justCreated])
+
   const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter' && data.isValid) {
       setNodes(nds => nds.map(n => n.id === id ? {
@@ -604,6 +608,10 @@ function BridgeNode({ id, data }: NodeProps<InterlinkedNode>) {
       return () => cancelAnimationFrame(frame)
     }
   }, [data.justCreated, data.size])
+
+  useEffect(() => {
+    if (data.justCreated) setHovered(false)
+  }, [data.justCreated])
 
   const onChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const text = e.target.value
