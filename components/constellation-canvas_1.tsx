@@ -1335,24 +1335,24 @@ function CanvasInner() {
     if (completionPhase !== 'idle') return null
     if (cameraStage === 'seed1') {
       return getSubtreeCount('seed1', nodes, edges) === 0
-        ? "double-click the sky to place your first idea for this side"
-        : "one more idea, connected to this seed, to activate it"
+        ? "Double-click the sky to place your first idea for this seed."
+        : "Good thinking. Keep going to activate your first seed."
     }
     if (cameraStage === 'seed2') {
       return getSubtreeCount('seed2', nodes, edges) === 0
-        ? "now bring an idea to this side"
-        : "one more idea here activates this seed too"
+        ? "Now bring an idea to this seed."
+        : "Just one more idea to activate."
     }
     const seed1 = nodes.find(n => n.id === 'seed1')
     const seed2 = nodes.find(n => n.id === 'seed2')
     if (!seed1?.data.activated || !seed2?.data.activated) return null
-    if (hasUnspannedBridge) return "link the bridge to an idea on each side"
-    if (isBridgeReady) return "a bridge is ready — double-click to place one"
+    if (hasUnspannedBridge) return "Link the bridge to an idea on each side"
+    if (isBridgeReady) return "You unlocked a bridge node — Double-click to place one when you're ready."
     const hasDepth2 = nodes.some(n =>
       n.data.nodeType === 'star' && getDepth(n.id, nodes, edges) >= 2
     )
-    if (hasDepth2) return "what connects these two sides?"
-    return "the bridge phase begins — connect an idea from each side"
+    if (hasDepth2) return "What connects these two sides?"
+    return "The bridge phase begins! Go deeper. Ask a question. Expand on a thought."
   })()
 
   const overlayText = gateMessage ?? canvasPrompt
