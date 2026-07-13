@@ -1756,7 +1756,7 @@ function CanvasInner({ seed1Label, seed2Label, onSnapshot, savedNodes, savedEdge
                     margin: '0 0 16px', fontSize: 13, lineHeight: 1.82,
                     color: '#2a2820', fontFamily: "'Plus Jakarta Sans', sans-serif",
                   }}>
-                    That entrance toward understanding isn’t always pretty. It’s raw. It’s vulnerable, but our thoughts were never meant to be contained in our brains. Our brains are made to produce thought, and words allow us to package our black and white ideas into colorful coherent thoughts. 
+                    That entrance toward understanding isn’t always pretty. It’s raw. It’s vulnerable, but our thoughts were never meant to be contained in our brains. Our brains produce indecipherable prethought, but Words. Words allow us to package our black and white prethoughts into colorful perspective, voice, and thought. 
                   </p>
                   <p style={{
                     margin: '0 0 28px', fontSize: 13, lineHeight: 1.82,
