@@ -1731,25 +1731,25 @@ function CanvasInner({ seed1Label, seed2Label }: { seed1Label: string; seed2Labe
                     color: '#2a2820', fontFamily: "'Plus Jakarta Sans', sans-serif",
                     fontStyle: 'italic', opacity: 0.55,
                   }}>
-                    "A belief you've released. What replaced it."
+                    “Prethought is black and white, thoughts and words create color.”
                   </p>
                   <p style={{
                     margin: '0 0 16px', fontSize: 13, lineHeight: 1.82,
                     color: '#2a2820', fontFamily: "'Plus Jakarta Sans', sans-serif",
                   }}>
-                    I made this prompt because I kept noticing a pattern in my own thinking — how the thing I let go of and the thing that took its place were never really separate. One made room for the other. The release wasn't an ending; it was a transfer.
+                    First of all, I really want to thank you for completing the first ever handwritten Interlinked prompt. It really means a lot, and I hope you genuinely put effort into the prompt today. I workshopped this first prompt with a journal entry from earlier this summer. It was an entry about how sometimes writing can feel like entering a void toward understanding. 
                   </p>
                   <p style={{
                     margin: '0 0 16px', fontSize: 13, lineHeight: 1.82,
                     color: '#2a2820', fontFamily: "'Plus Jakarta Sans', sans-serif",
                   }}>
-                    I think most of us carry a quiet inventory of abandoned beliefs. We don't talk about them because they feel like failures — things we were wrong about. But they're not failures. They're evidence that something shifted. Something was learned. Something made a path.
+                    That entrance toward understanding isn’t always pretty. It’s raw. It’s vulnerable, but our thoughts were never meant to be contained in our brains. Our brains are made to produce thought, and words allow us to package our black and white ideas into colorful coherent thoughts. 
                   </p>
                   <p style={{
                     margin: '0 0 28px', fontSize: 13, lineHeight: 1.82,
                     color: '#2a2820', fontFamily: "'Plus Jakarta Sans', sans-serif",
                   }}>
-                    The bridge you just built is yours. Whatever you mapped — I hope it showed you that the two sides were always talking, even when you couldn't hear it.
+                    I hope you were able to see some of that color in your constellation today! Even if you were nervous to type, this is what Interlinked is about. I’ll let you get back to working on your canvas if you have more to paint. See you for the next one. 
                   </p>
                   <p style={{
                     margin: '0 0 24px', fontSize: 12, letterSpacing: '0.05em',
