@@ -37,6 +37,7 @@ type InterlinkedNodeData = {
   visible: boolean
   selectedForBridge: boolean
   justCreated: boolean
+  originalKind?: NodeKind
   originalText?: string             // saved on double-click edit entry; restored on Escape/invalid-blur
   pendingKind: NodeKind | null      // color-bubble selection during 'creating' state
   bridgeUnlocked: boolean           // snapshot of isBridgeReady, taken at creation
@@ -538,7 +539,35 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
   const [hintHovered, setHintHovered] = useState(false)
   const [hintSide, setHintSide] = useState<'right' | 'left'>('right')
   const stripRef = useRef<HTMLDivElement>(null)
-  
+
+  const restoreOriginal = useCallback(() => {
+    const orig = data.originalText ?? ''
+    const kind = data.originalKind ?? 'seed1'
+    setNodes(nds => nds.map(n => {
+      if (n.id !== id) return n
+      if (kind === 'bridge') {
+        return {
+          ...n, type: 'bridge', draggable: true,
+          data: {
+            ...n.data, nodeType: 'bridge', justCreated: false, pendingKind: null,
+            originalText: undefined, originalKind: undefined,
+            text: orig, charCount: orig.length, isValid: orig.length >= 10, size: 13,
+          }
+        }
+      }
+      return {
+        ...n, type: 'star', draggable: true,
+        data: {
+          ...n.data, nodeType: 'star', lockedSeed: kind as SeedSide,
+          justCreated: false, pendingKind: null,
+          originalText: undefined, originalKind: undefined,
+          text: orig, charCount: orig.length, isValid: orig.length >= 10,
+          size: getStarSize(orig.length),
+        }
+      }
+    }))
+  }, [id, data.originalText, data.originalKind, setNodes])
+
   // Measure after React Flow has positioned the node (hence the rAF),
   // and only to decide which side the hint opens toward.
   useEffect(() => {
@@ -558,6 +587,8 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
     ))
   }, [id, setNodes])
 
+  
+
   // Shared commit path — used by both the Enter key and a decisive bubble
   // click, so a bubble click that lands the second rooted idea for a seed
   // runs through the exact same node-commit shape either way.
@@ -567,14 +598,16 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
       if (kind === 'bridge') {
         return {
           ...n, type: 'bridge', draggable: true,
-          data: { ...n.data, nodeType: 'bridge', justCreated: false, pendingKind: null, size: 13 }
+          data: { ...n.data, nodeType: 'bridge', justCreated: false, pendingKind: null,
+                  originalText: undefined, originalKind: undefined, size: 13 }
         }
       }
       return {
         ...n, type: 'star', draggable: true,
         data: {
           ...n.data, nodeType: 'star', lockedSeed: kind as SeedSide,
-          justCreated: false, pendingKind: null, size: getStarSize(n.data.charCount as number)
+          justCreated: false, pendingKind: null, originalText: undefined, originalKind: undefined, size: getStarSize(n.data.charCount as number)
+          
         }
       }
     }))
@@ -605,11 +638,19 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
     }
     commitAs(data.pendingKind)
   } else if (e.key === 'Escape') {
-    setNodes(nds => nds.filter(n => n.id !== id))
+    if (data.originalText !== undefined) restoreOriginal()
+    else setNodes(nds => nds.filter(n => n.id !== id))
   }
-}, [id, data.isValid, data.pendingKind, commitAs, setNodes, nudge])
+}, [id, data.isValid, data.pendingKind, commitAs, setNodes, nudge, data.originalText, restoreOriginal])
 
   const onBlur = useCallback(() => {
+    if (data.originalText !== undefined) {
+      // Editing — commit if committable, otherwise put everything back
+      if (data.isValid && data.pendingKind) commitAs(data.pendingKind)
+      else restoreOriginal()
+      return
+    }
+
     if (data.isValid && data.pendingKind) {
       commitAs(data.pendingKind)
     } else if (data.charCount === 0) {
@@ -619,7 +660,7 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
     } else {
       nudge('pick a color to finish')
     }
-  }, [id, data.charCount, data.isValid, data.pendingKind, commitAs, setNodes, nudge])
+  }, [id, data.charCount, data.isValid, data.pendingKind, data.originalText, commitAs, restoreOriginal, setNodes, nudge])
 
   const color = data.pendingKind ? kindColor(data.pendingKind) : NEUTRAL_COLOR
   const bubbleKinds: NodeKind[] = ['seed1', 'seed2', ...(data.bridgeUnlocked ? (['bridge'] as NodeKind[]) : [])]
@@ -663,6 +704,20 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
             whiteSpace: 'normal', lineHeight: 1.35,
           }}>
             Each color ties a star to its particular seed. Only connecting stars can link to both sides. Choose a color for this idea.
+          </p>
+          <p style={{
+            margin: 0, fontSize: 10.5, color: '#e4c89e', opacity: 0.9,
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            whiteSpace: 'normal', lineHeight: 1.35,
+          }}>
+            Only connecting stars can link to both sides. Choose a color for this idea.
+          </p>
+          <p style={{
+            margin: 0, fontSize: 10.5, color: '#e4c89e', opacity: 0.9,
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            whiteSpace: 'normal', lineHeight: 1.35,
+          }}>
+            Choose a color for this idea.
           </p>
         </div>
       )}
@@ -978,6 +1033,7 @@ function CanvasInner({ seed1Label, seed2Label, onSnapshot, savedNodes, savedEdge
   const [cameraStage, setCameraStage] = useState<CameraStage>('seed1')
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 })
   const [colorHintState, setColorHintState] = useState<ColorHintState>('hidden')
+  const colorLockNudged = useRef(false)
   const dismissColorHint = useCallback(() => setColorHintState('dismissed'), [])
   const { screenToFlowPosition, getViewport, setViewport, fitView } = useReactFlow()
   const isEditingNode = nodes.some(n => n.data.justCreated)
@@ -1345,7 +1401,7 @@ function CanvasInner({ seed1Label, seed2Label, onSnapshot, savedNodes, savedEdge
       return
     }
     createChoiceNode(flow)
-  }, [completionPhase, screenToFlowPosition, seed2Visible, createNode, createChoiceNode])
+  }, [completionPhase, screenToFlowPosition, seed2Visible, createNode, createChoiceNode, nudge])
 
 
   // Click node → two-click linking with side-locking enforcement
@@ -1441,11 +1497,35 @@ function CanvasInner({ seed1Label, seed2Label, onSnapshot, savedNodes, savedEdge
     if (node.data.nodeType === 'seed') return
     if (node.data.justCreated) return      // already in edit mode
     if (completionPhase === 'pulsing') return
-    setNodes(nds => nds.map(n => n.id === node.id ? {
-      ...n, draggable: false,
-      data: { ...n.data, justCreated: true, originalText: n.data.text }
-    } : n))
-  }, [setNodes, completionPhase])
+
+    const hasEdges = edges.some(e => e.source === node.id || e.target === node.id)
+
+    if (hasEdges) {
+      // Connected — text-only edit, exactly as before
+      setNodes(nds => nds.map(n => n.id === node.id ? {
+        ...n, draggable: false,
+        data: { ...n.data, justCreated: true, originalText: n.data.text }
+      } : n))
+      if (!colorLockNudged.current) {
+        colorLockNudged.current = true
+        nudge('linked stars keep their color — unlink first to change it')
+      }
+      return
+    }
+
+    const originalKind: NodeKind =
+      node.data.nodeType === 'bridge' ? 'bridge' : (node.data.lockedSeed ?? 'seed1')
+      setNodes(nds => nds.map(n => n.id === node.id ? {
+        ...n, type: 'creating', draggable: false,
+        data: {
+          ...n.data, justCreated: true,
+          originalText: n.data.text, originalKind,
+          pendingKind: originalKind,
+          bridgeUnlocked: isBridgeReady || node.data.nodeType === 'bridge',
+        }
+      } : n))
+    }, [setNodes, completionPhase, edges, isBridgeReady])
+
 
   // Click empty canvas → cancel pending connection
   const onPaneClick = useCallback(() => {
