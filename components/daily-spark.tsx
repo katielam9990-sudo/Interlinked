@@ -1,7 +1,8 @@
 "use client"
 
 import Link from "next/link"
-import { useCallback, useState } from "react"
+import { useCallback, useState, useEffect } from "react"
+import { supabase } from "@/lib/supabase"
 import { ConstellationCanvas } from "@/components/constellation-canvas_1"
 // import { ConstellationCanvas_1 } from "./constellation-canvas_1"
 
@@ -111,6 +112,22 @@ export function DailySpark({ promptData }: { promptData: PromptRow | null }) {
   if (typeof window === 'undefined') return false
   return new URLSearchParams(window.location.search).get('creator') === 'true'
   })
+
+  const [userId, setUserId] = useState<string | null>(null)
+
+  useEffect(() => {
+    // read the current session once on mount
+    supabase.auth.getSession().then(({ data }) => {
+      setUserId(data.session?.user.id ?? null)
+    })
+    // and subscribe so login/logout updates it live
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserId(session?.user.id ?? null)
+    })
+    return () => sub.subscription.unsubscribe()
+  }, [])
+
+  console.log('userId:', userId)
 
   const updateCitation = useCallback(
     (id: string, field: "text" | "author", value: string) => {
