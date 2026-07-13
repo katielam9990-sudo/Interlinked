@@ -596,12 +596,16 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
 }, [id, data.isValid, data.pendingKind, commitAs, setNodes, nudge])
 
   const onBlur = useCallback(() => {
-    if (data.charCount === 0) {
+    if (data.isValid && data.pendingKind) {
+      commitAs(data.pendingKind)
+    } else if (data.charCount === 0) {
       setNodes(nds => nds.filter(n => n.id !== id))
     } else if (!data.isValid) {
       nudge('a few more words and it becomes a star')
+    } else {
+      nudge('pick a color to finish')
     }
-  }, [id, data.charCount, data.isValid, setNodes, nudge])
+  }, [id, data.charCount, data.isValid, data.pendingKind, commitAs, setNodes, nudge])
 
   const color = data.pendingKind ? kindColor(data.pendingKind) : NEUTRAL_COLOR
   const bubbleKinds: NodeKind[] = ['seed1', 'seed2', ...(data.bridgeUnlocked ? (['bridge'] as NodeKind[]) : [])]
