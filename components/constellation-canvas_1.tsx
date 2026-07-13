@@ -1194,6 +1194,7 @@ function CanvasInner({ seed1Label, seed2Label }: { seed1Label: string; seed2Labe
   //   — before seed2 exists → create a seed1 idea directly (only one option)
   //   — otherwise → open the input + color-bubble strip in place
   const onDoubleClick = useCallback((e: React.MouseEvent) => {
+    if (isEditingNode) return
     if (completionPhase === 'pulsing') return
     if (cardOpen) return
     if (!(e.target as Element).classList.contains('react-flow__pane')) return
