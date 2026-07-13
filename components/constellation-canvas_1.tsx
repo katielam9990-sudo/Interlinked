@@ -329,6 +329,7 @@ function StarNode({ data, id, dragging }: NodeProps<InterlinkedNode>) {
   const [pulseScale, setPulseScale] = useState(1)
   const { litIds } = useContext(CompletionCtx)
   const isLit = litIds.has(id)
+  const { nudge } = useContext(NudgeCtx)
 
   useEffect(() => {
     if (isLit) {
@@ -363,6 +364,8 @@ function StarNode({ data, id, dragging }: NodeProps<InterlinkedNode>) {
         ...n, draggable: true,
         data: { ...n.data, justCreated: false, originalText: undefined, size: getStarSize(n.data.charCount as number) }
       } : n))
+    } else if (e.key === 'Enter') {
+      nudge('give it a few more words')
     } else if (e.key === 'Escape') {
       if (data.originalText !== undefined) {
         // Editing an existing node — restore original instead of deleting
@@ -375,7 +378,7 @@ function StarNode({ data, id, dragging }: NodeProps<InterlinkedNode>) {
         setNodes(nds => nds.filter(n => n.id !== id))
       }
     }
-  }, [id, data.isValid, data.originalText, setNodes])
+  }, [id, data.isValid, data.originalText, setNodes, nudge])
 
   const onBlur = useCallback(() => {
     if (data.originalText !== undefined) {
@@ -393,9 +396,13 @@ function StarNode({ data, id, dragging }: NodeProps<InterlinkedNode>) {
         } : n))
       }
     } else {
-      if (!data.isValid) setNodes(nds => nds.filter(n => n.id !== id))
+      if (data.charCount === 0) {
+        setNodes(nds => nds.filter(n => n.id !== id))
+      } else if (!data.isValid) {
+        nudge('a few more words and it becomes a star')
+      }
     }
-  }, [id, data.isValid, data.originalText, setNodes])
+  }, [id, data.isValid, data.originalText, setNodes, nudge])
 
   const color = getNodeColor(data)
   const baseGlow = data.glowState === 'none' ? 5 : data.glowState === 'soft' ? 15 : 30
@@ -410,18 +417,14 @@ function StarNode({ data, id, dragging }: NodeProps<InterlinkedNode>) {
           width: 8, height: 8, borderRadius: '50%',
           backgroundColor: color, opacity: 0.4, boxShadow: `0 0 8px ${color}`,
         }} />
-        <input
-          autoFocus value={data.text}
-          onChange={onChange} onKeyDown={onKeyDown} onBlur={onBlur}
-          onMouseDown={(e) => e.stopPropagation()}
-          placeholder={data.lockedSeed === 'seed2' ? 'A thought for this side...' : 'A thought for this side...'}
-          style={{
-            marginTop: 8, background: 'transparent', border: 'none',
-            borderBottom: `1px solid ${color}`, color: '#e4eade',
-            font: "13px 'Plus Jakarta Sans', sans-serif",
-            outline: 'none', width: 200, textAlign: 'center',
-          }}
-        />
+        <div style={{ marginTop: 8 }}>
+          <StarInput
+            value={data.text} color={color}
+            charCount={data.charCount} isValid={data.isValid}
+            width={200} placeholder="A thought for this seed..."
+            onChange={onChange} onKeyDown={onKeyDown} onBlur={onBlur}
+          />
+        </div>
         <Handle type="target" position={Position.Left} style={centeredHandle} />
         <Handle type="source" position={Position.Right} style={centeredHandle} />
       </div>
@@ -470,6 +473,54 @@ function StarNode({ data, id, dragging }: NodeProps<InterlinkedNode>) {
   )
 }
 
+// ─── StarInput ── shared creating-input with progress underline ──────────────
+// The 10-char rule made visible: the underline grows from center as you type
+// and blooms with glow the moment the text is long enough to become a star.
+
+function StarInput({ value, color, charCount, isValid, width = 190, placeholder, onChange, onKeyDown, onBlur }: {
+  value: string
+  color: string
+  charCount: number
+  isValid: boolean
+  width?: number
+  placeholder?: string
+  onChange: (e: React.ChangeEvent<HTMLInputElement>) => void
+  onKeyDown: (e: React.KeyboardEvent<HTMLInputElement>) => void
+  onBlur: () => void
+}) {
+  const progress = Math.min(charCount / 10, 1)
+  return (
+    <div style={{ position: 'relative', display: 'inline-block' }}>
+      <input
+        autoFocus value={value}
+        onChange={onChange} onKeyDown={onKeyDown} onBlur={onBlur}
+        onMouseDown={(e) => e.stopPropagation()}
+        placeholder={placeholder}
+        style={{
+          background: 'transparent', border: 'none', color: '#e4eade',
+          font: "13px 'Plus Jakarta Sans', sans-serif",
+          outline: 'none', width, textAlign: 'center', paddingBottom: 3,
+        }}
+      />
+      {/* dim full-width track */}
+      <div style={{
+        position: 'absolute', bottom: 0, left: 0, right: 0, height: 1,
+        backgroundColor: color, opacity: 0.22,
+      }} />
+      {/* the growing, glowing fill */}
+      <div style={{
+        position: 'absolute', bottom: 0, left: '50%', height: 1,
+        transform: 'translateX(-50%)',
+        width: `${progress * 100}%`,
+        backgroundColor: color,
+        boxShadow: isValid
+          ? `0 0 7px ${color}, 0 0 14px ${color}`
+          : `0 0 ${progress * 4}px ${color}`,
+        transition: 'width 0.25s ease, box-shadow 0.45s ease',
+      }} />
+    </div>
+  )
+}
 
 // ─── CreatingNode ─────────────────────────────────────────────────────────────
 // Double-click opens this immediately — a text input with small color bubbles
@@ -537,8 +588,12 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
   }, [id, data.isValid, data.pendingKind, commitAs, setNodes, nudge])
 
   const onBlur = useCallback(() => {
-    if (!data.isValid) setNodes(nds => nds.filter(n => n.id !== id))
-  }, [id, data.isValid, setNodes])
+    if (data.charCount === 0) {
+      setNodes(nds => nds.filter(n => n.id !== id))
+    } else if (!data.isValid) {
+      nudge('a few more words and it becomes a star')
+    }
+  }, [id, data.charCount, data.isValid, setNodes, nudge])
 
   const color = data.pendingKind ? kindColor(data.pendingKind) : NEUTRAL_COLOR
   const bubbleKinds: NodeKind[] = ['seed1', 'seed2', ...(data.bridgeUnlocked ? (['bridge'] as NodeKind[]) : [])]
@@ -556,18 +611,11 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
         transition: 'background-color 0.2s ease, opacity 0.2s ease',
       }} />
       <div style={{ position: 'relative', marginTop: 8 }}>
-        <input
-          autoFocus value={data.text}
-          onChange={onChange} onKeyDown={onKeyDown} onBlur={onBlur}
-          onMouseDown={(e) => e.stopPropagation()}
+        <StarInput
+          value={data.text} color={color}
+          charCount={data.charCount} isValid={data.isValid}
           placeholder="What's the thought?"
-          style={{
-            background: 'transparent', border: 'none',
-            borderBottom: `1px solid ${color}`, color: '#e4eade',
-            font: "13px 'Plus Jakarta Sans', sans-serif",
-            outline: 'none', width: 190, textAlign: 'center',
-            transition: 'border-color 0.2s ease',
-          }}
+          onChange={onChange} onKeyDown={onKeyDown} onBlur={onBlur}
         />
 
         {/* Color bubbles — beside the input. Minimal: no menu chrome, just dots. */}
@@ -628,6 +676,7 @@ function BridgeNode({ id, data, dragging }: NodeProps<InterlinkedNode>) {
   const [pulseScale, setPulseScale] = useState(1)
   const { litIds } = useContext(CompletionCtx)
   const isLit = litIds.has(id)
+  const { nudge } = useContext(NudgeCtx)
 
   // Bridge pulses a touch more dramatically — it's the origin of the wave
   useEffect(() => {
@@ -662,8 +711,11 @@ function BridgeNode({ id, data, dragging }: NodeProps<InterlinkedNode>) {
         ...n, draggable: true,
         data: { ...n.data, justCreated: false, originalText: undefined, size: 13 }
       } : n))
+    } else if (e.key === 'Enter') {
+      nudge('give it a few more words')
     } else if (e.key === 'Escape') {
       if (data.originalText !== undefined) {
+        // Editing an existing node — restore original instead of deleting
         const orig = data.originalText
         setNodes(nds => nds.map(n => n.id === id ? {
           ...n, draggable: true,
@@ -673,7 +725,7 @@ function BridgeNode({ id, data, dragging }: NodeProps<InterlinkedNode>) {
         setNodes(nds => nds.filter(n => n.id !== id))
       }
     }
-  }, [id, data.isValid, data.originalText, setNodes])
+  }, [id, data.isValid, data.originalText, setNodes, nudge])
 
   const onBlur = useCallback(() => {
     if (data.originalText !== undefined) {
@@ -690,9 +742,13 @@ function BridgeNode({ id, data, dragging }: NodeProps<InterlinkedNode>) {
         } : n))
       }
     } else {
-      if (!data.isValid) setNodes(nds => nds.filter(n => n.id !== id))
+      if (data.charCount === 0) {
+        setNodes(nds => nds.filter(n => n.id !== id))
+      } else if (!data.isValid) {
+        nudge('a few more words and it becomes a star')
+      }
     }
-  }, [id, data.isValid, data.originalText, setNodes])
+  }, [id, data.isValid, data.originalText, setNodes, nudge])
 
   const color = BRIDGE_COLOR
 
@@ -709,18 +765,14 @@ function BridgeNode({ id, data, dragging }: NodeProps<InterlinkedNode>) {
           width: 8, height: 8, borderRadius: '50%',
           backgroundColor: color, opacity: 0.5, boxShadow: `0 0 10px ${color}`,
         }} />
-        <input
-          autoFocus value={data.text}
-          onChange={onChange} onKeyDown={onKeyDown} onBlur={onBlur}
-          onMouseDown={(e) => e.stopPropagation()}
-          placeholder="The idea that connects both sides..."
-          style={{
-            marginTop: 10, background: 'transparent', border: 'none',
-            borderBottom: `1px solid ${color}`, color: '#e4eade',
-            font: "13px 'Plus Jakarta Sans', sans-serif",
-            outline: 'none', width: 220, textAlign: 'center',
-          }}
-        />
+        <div style={{ marginTop: 8 }}>
+          <StarInput
+            value={data.text} color={color}
+            charCount={data.charCount} isValid={data.isValid}
+            width={200} placeholder="What connects them..."
+            onChange={onChange} onKeyDown={onKeyDown} onBlur={onBlur}
+          />
+        </div>
         <Handle type="target" position={Position.Left} style={centeredHandle} />
         <Handle type="source" position={Position.Right} style={centeredHandle} />
       </div>
