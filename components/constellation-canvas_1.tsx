@@ -805,7 +805,7 @@ const nodeTypes: NodeTypes = { seed: SeedNode, star: StarNode, bridge: BridgeNod
 
 // ─── Canvas inner ─────────────────────────────────────────────────────────────
 
-function CanvasInner({ seed1Label, seed2Label }: { seed1Label: string; seed2Label: string }) {
+function CanvasInner({ seed1Label, seed2Label, onSnapshot }: { seed1Label: string; seed2Label: string; onSnapshot?: (nodes: unknown, edges: unknown) => void}) {
   const [nodes, setNodes, onNodesChange] = useNodesState<InterlinkedNode>([
     {
       id: 'seed1', type: 'seed', position: { x: 200, y: 300 }, draggable: false,
@@ -999,6 +999,12 @@ function CanvasInner({ seed1Label, seed2Label }: { seed1Label: string; seed2Labe
     })
   }, [edges])
 
+  // Debounced autosave — waits for 2s of quiet before snapshotting
+  useEffect(() => {
+    if (!onSnapshot) return
+    const timer = setTimeout(() => onSnapshot(nodes, edges), 2000)
+    return () => clearTimeout(timer)
+  }, [nodes, edges, onSnapshot])
 
   // ── Completion pulse ────────────────────────────────────────────────────────
   // BFS wave from the bridge node outward. The zoom-out runs FIRST and settles;
@@ -1788,11 +1794,15 @@ function CanvasInner({ seed1Label, seed2Label }: { seed1Label: string; seed2Labe
 
 // ─── Root export ──────────────────────────────────────────────────────────────
 
-export function ConstellationCanvas({ seed1Label, seed2Label }: { seed1Label: string; seed2Label: string }) {
+export function ConstellationCanvas({ seed1Label, seed2Label, onSnapshot }: {
+  seed1Label: string
+  seed2Label: string
+  onSnapshot?: (nodes: unknown, edges: unknown) => void
+}) {
   return (
     <div style={{ width: '100%', height: '100%' }}>
       <ReactFlowProvider>
-        <CanvasInner seed1Label={seed1Label} seed2Label={seed2Label} />
+        <CanvasInner seed1Label={seed1Label} seed2Label={seed2Label} onSnapshot={onSnapshot}/>
       </ReactFlowProvider>
     </div>
   )

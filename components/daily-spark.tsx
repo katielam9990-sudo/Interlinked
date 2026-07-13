@@ -74,6 +74,7 @@ const HELP_QUESTIONS = [
 // Deterministic seeded PRNG so server and client render identical star fields.
 
 type PromptRow = {
+  id: number
   prompt_text: string | null
   seed1_label: string | null
   seed2_label: string | null
@@ -115,6 +116,21 @@ export function DailySpark({ promptData }: { promptData: PromptRow | null }) {
 
   const [userId, setUserId] = useState<string | null>(null)
 
+  const handleSnapshot = useCallback(async (nodes: unknown, edges: unknown) => {
+    if (!promptData) return
+    if (userId) {
+      await supabase.from('constellations').upsert(
+        { user_id: userId, prompt_id: promptData.id, nodes, edges },
+        { onConflict: 'user_id,prompt_id' }
+      )
+    } else {
+      localStorage.setItem(
+        `constellation-${promptData.id}`,
+        JSON.stringify({ nodes, edges })
+      )
+    }
+  }, [userId, promptData])
+
   useEffect(() => {
     // read the current session once on mount
     supabase.auth.getSession().then(({ data }) => {
@@ -127,7 +143,6 @@ export function DailySpark({ promptData }: { promptData: PromptRow | null }) {
     return () => sub.subscription.unsubscribe()
   }, [])
 
-  console.log('userId:', userId)
 
   const updateCitation = useCallback(
     (id: string, field: "text" | "author", value: string) => {
@@ -492,6 +507,7 @@ export function DailySpark({ promptData }: { promptData: PromptRow | null }) {
         <ConstellationCanvas
           seed1Label={seeds[0].text}
           seed2Label={seeds[1].text}
+          onSnapshot={handleSnapshot}
         />
       )}
       </section>
