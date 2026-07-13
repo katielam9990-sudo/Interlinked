@@ -638,7 +638,7 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
       }}
     >
       <span style={{
-        fontSize: 14, color: '#e4c89e', lineHeight: 1,
+        fontSize: 14, color: '#e4c89e', lineHeight: 1, flexShrink: 0,
         opacity: hintState === 'pulsing' || hintHovered ? 1 : 0.3,
         animation: hintState === 'pulsing' ? 'arrow-pulse 1.6s ease-in-out infinite' : 'none',
         textShadow: '0 0 8px #e4c89e, 0 0 16px rgba(228, 200, 158, 0.5)',
@@ -652,7 +652,8 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
           border: '1px solid rgba(228, 200, 158, 0.35)',
           borderRadius: 8,
           padding: '6px 10px',
-          maxWidth: 600,
+          width: 600,
+          flexShrink: 0,
           boxShadow: '0 0 14px rgba(228, 200, 158, 0.15)',
           animation: 'arrow-text-in 0.25s ease forwards',
         }}>
@@ -661,7 +662,7 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
             fontFamily: "'Plus Jakarta Sans', sans-serif",
             whiteSpace: 'normal', lineHeight: 1.35,
           }}>
-            Idea stars are restricted to their respective seeds. Only connector stars can connect to both. Choose which seed your star will link to.
+            Each color ties a star to its particular seed. Only connecting stars can link to both sides. Choose a color for this idea.
           </p>
         </div>
       )}
@@ -693,6 +694,7 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
           position: 'absolute', left: '100%', top: '50%',
           transform: 'translateY(-50%)', marginLeft: 10,
           display: 'flex', gap: 6, alignItems: 'center',
+          width: 'max-content',
         }}>
           {bubbleKinds.map(kind => (
             <button
@@ -701,7 +703,7 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
               onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }}
               onClick={() => selectKind(kind)}
               style={{
-                width: 11, height: 11, borderRadius: '50%', padding: 0, cursor: 'pointer',
+                width: 11, height: 11, borderRadius: '50%', padding: 0, cursor: 'pointer', flexShrink: 0,
                 backgroundColor: kindColor(kind),
                 border: data.pendingKind === kind ? '1.5px solid #e4eade' : '1.5px solid transparent',
                 boxShadow: `0 0 6px ${kindColor(kind)}`,
@@ -717,6 +719,7 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
           <div style={{
             position: 'absolute', right: '100%', top: '50%',
             transform: 'translateY(-50%)', marginRight: 10,
+            width: 'max-content',
           }}>
             {hintBlock}
           </div>
