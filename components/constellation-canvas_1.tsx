@@ -1,7 +1,6 @@
 "use client"
 
 import { useCallback, useEffect, useState, useRef, useContext, createContext } from 'react'
-import { createPortal } from 'react-dom'
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -536,26 +535,21 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
   const { setNodes } = useReactFlow()
   const { nudge } = useContext(NudgeCtx)
   const { hintState, dismissHint } = useContext(ColorHintCtx)
-  const [hintFading, setHintFading] = useState(false)
+  const [hintHovered, setHintHovered] = useState(false)
+  const [hintSide, setHintSide] = useState<'right' | 'left'>('right')
   const stripRef = useRef<HTMLDivElement>(null)
-  const [hintPos, setHintPos] = useState<{ x: number; y: number; side: 'right' | 'left' } | null>(null)
-
+  
+  // Measure after React Flow has positioned the node (hence the rAF),
+  // and only to decide which side the hint opens toward.
   useEffect(() => {
-    if (hintState !== 'pulsing' || !stripRef.current) return
-    const rect = stripRef.current.getBoundingClientRect()
-    const estimatedHintWidth = 190   // beacon + gap + card at maxWidth 150, roughly
-    const overflowsRight = rect.right + estimatedHintWidth > window.innerWidth
-    setHintPos({
-      x: overflowsRight ? rect.left : rect.right,
-      y: rect.top + rect.height / 2,
-      side: overflowsRight ? 'left' : 'right',
+    if (hintState === 'hidden') return
+    const frame = requestAnimationFrame(() => {
+      if (!stripRef.current) return
+      const rect = stripRef.current.getBoundingClientRect()
+      if (rect.right + 200 > window.innerWidth) setHintSide('left')
     })
+    return () => cancelAnimationFrame(frame)
   }, [hintState])
-
-  const onHintHover = () => {
-    setHintFading(true)
-    setTimeout(dismissHint, 400)   // lets the fade play before it's gone for good
-  }
 
   const onChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const text = e.target.value
@@ -630,6 +624,50 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
   const color = data.pendingKind ? kindColor(data.pendingKind) : NEUTRAL_COLOR
   const bubbleKinds: NodeKind[] = ['seed1', 'seed2', ...(data.bridgeUnlocked ? (['bridge'] as NodeKind[]) : [])]
 
+  const showHintCard = hintState === 'pulsing' || hintHovered
+
+  const hintBlock = hintState !== 'hidden' && (
+    <div
+      onMouseEnter={() => { setHintHovered(true); if (hintState === 'pulsing') dismissHint() }}
+      onMouseLeave={() => setHintHovered(false)}
+      onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 7,
+        flexDirection: hintSide === 'right' ? 'row' : 'row-reverse',
+        cursor: 'default',
+      }}
+    >
+      <span style={{
+        fontSize: 14, color: '#e4c89e', lineHeight: 1,
+        opacity: hintState === 'pulsing' || hintHovered ? 1 : 0.3,
+        animation: hintState === 'pulsing' ? 'arrow-pulse 1.6s ease-in-out infinite' : 'none',
+        textShadow: '0 0 8px #e4c89e, 0 0 16px rgba(228, 200, 158, 0.5)',
+        transition: 'opacity 0.4s ease',
+      }}>
+        ✦
+      </span>
+      {showHintCard && (
+        <div style={{
+          background: 'rgba(20, 22, 30, 0.92)',
+          border: '1px solid rgba(228, 200, 158, 0.35)',
+          borderRadius: 8,
+          padding: '6px 10px',
+          maxWidth: 150,
+          boxShadow: '0 0 14px rgba(228, 200, 158, 0.15)',
+          animation: 'arrow-text-in 0.25s ease forwards',
+        }}>
+          <p style={{
+            margin: 0, fontSize: 10.5, color: '#e4c89e', opacity: 0.9,
+            fontFamily: "'Plus Jakarta Sans', sans-serif",
+            whiteSpace: 'normal', lineHeight: 1.35,
+          }}>
+            Idea stars are restricted to their respective seeds. Only connector stars can connect to both. Choose which seed your star will link to.
+          </p>
+        </div>
+      )}
+    </div>
+  )
+
   // Same column layout StarNode/BridgeNode use for justCreated — keeps the
   // dot anchored exactly at the double-click point. The bubble strip is an
   // absolutely-positioned overlay beside the input, so it doesn't shift that
@@ -672,48 +710,17 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
               }}
             />
           ))}
-          {hintState === 'pulsing' && hintPos && createPortal(
-            <div
-              onMouseEnter={onHintHover}
-              style={{
-                position: 'fixed',
-                top: hintPos.y, left: hintPos.x,
-                transform: `translateY(-50%) ${hintPos.side === 'left' ? 'translateX(-100%)' : ''}`,
-                display: 'flex', alignItems: 'center', gap: 7,
-                flexDirection: hintPos.side === 'right' ? 'row' : 'row-reverse',
-                cursor: 'default', zIndex: 50,
-                opacity: hintFading ? 0 : 1,
-                transition: 'opacity 0.4s ease',
-              }}
-            >
-              <span style={{
-                fontSize: 14, color: '#e4c89e', lineHeight: 1,
-                animation: 'arrow-pulse 1.6s ease-in-out infinite',
-                textShadow: '0 0 8px #e4c89e, 0 0 16px rgba(228, 200, 158, 0.5)',
-              }}>
-                ✦
-              </span>
-              <div style={{
-                background: 'rgba(20, 22, 30, 0.92)',
-                border: '1px solid rgba(228, 200, 158, 0.35)',
-                borderRadius: 8,
-                padding: '6px 10px',
-                maxWidth: 150,
-                boxShadow: '0 0 14px rgba(228, 200, 158, 0.15)',
-                animation: 'arrow-text-in 0.25s ease forwards',
-              }}>
-                <p style={{
-                  margin: 0, fontSize: 10.5, color: '#e4c89e', opacity: 0.9,
-                  fontFamily: "'Plus Jakarta Sans', sans-serif",
-                  whiteSpace: 'normal', lineHeight: 1.35,
-                }}>
-                  the color you pick decides which side this joins
-                </p>
-              </div>
-            </div>,
-            document.body
-          )}
+          {hintSide === 'right' && hintBlock}
         </div>
+
+        {hintSide === 'left' && (
+          <div style={{
+            position: 'absolute', right: '100%', top: '50%',
+            transform: 'translateY(-50%)', marginRight: 10,
+          }}>
+            {hintBlock}
+          </div>
+        )}
       </div>
 
       <Handle type="target" position={Position.Left} style={centeredHandle} />
