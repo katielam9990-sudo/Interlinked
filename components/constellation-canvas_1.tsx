@@ -1,6 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState, useRef, useContext, createContext } from 'react'
+import { createPortal } from 'react-dom'
 import {
   ReactFlow,
   ReactFlowProvider,
@@ -77,13 +78,6 @@ function kindColor(kind: NodeKind): string {
   if (kind === 'seed1') return SEED1_COLOR
   if (kind === 'seed2') return SEED2_COLOR
   return BRIDGE_COLOR
-}
-
-// Tiny hover-tooltip text for each bubble — deliberately never says "bridge"
-function kindLabel(kind: NodeKind): string {
-  if (kind === 'seed1') return 'this side'
-  if (kind === 'seed2') return 'other side'
-  return 'connects both'
 }
 
 
@@ -542,8 +536,21 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
   const { setNodes } = useReactFlow()
   const { nudge } = useContext(NudgeCtx)
   const { hintState, dismissHint } = useContext(ColorHintCtx)
-  const [hoveredKind, setHoveredKind] = useState<NodeKind | null>(null)
   const [hintFading, setHintFading] = useState(false)
+  const stripRef = useRef<HTMLDivElement>(null)
+  const [hintPos, setHintPos] = useState<{ x: number; y: number; side: 'right' | 'left' } | null>(null)
+
+  useEffect(() => {
+    if (hintState !== 'pulsing' || !stripRef.current) return
+    const rect = stripRef.current.getBoundingClientRect()
+    const estimatedHintWidth = 190   // beacon + gap + card at maxWidth 150, roughly
+    const overflowsRight = rect.right + estimatedHintWidth > window.innerWidth
+    setHintPos({
+      x: overflowsRight ? rect.left : rect.right,
+      y: rect.top + rect.height / 2,
+      side: overflowsRight ? 'left' : 'right',
+    })
+  }, [hintState])
 
   const onHintHover = () => {
     setHintFading(true)
@@ -644,48 +651,37 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
         />
 
         {/* Color bubbles — beside the input. Minimal: no menu chrome, just dots. */}
-        <div style={{
+        <div ref={stripRef} style={{
           position: 'absolute', left: '100%', top: '50%',
           transform: 'translateY(-50%)', marginLeft: 10,
           display: 'flex', gap: 6, alignItems: 'center',
         }}>
           {bubbleKinds.map(kind => (
-            <div
+            <button
               key={kind}
-              style={{ position: 'relative' }}
-              onMouseEnter={() => setHoveredKind(kind)}
-              onMouseLeave={() => setHoveredKind(prev => (prev === kind ? null : prev))}
-            >
-              <button
-                type="button"
-                onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }}
-                onClick={() => selectKind(kind)}
-                style={{
-                  width: 11, height: 11, borderRadius: '50%', padding: 0, cursor: 'pointer',
-                  backgroundColor: kindColor(kind),
-                  border: data.pendingKind === kind ? '1.5px solid #e4eade' : '1.5px solid transparent',
-                  boxShadow: `0 0 6px ${kindColor(kind)}`,
-                  opacity: data.pendingKind && data.pendingKind !== kind ? 0.4 : 1,
-                  transition: 'opacity 0.15s ease, border-color 0.15s ease',
-                }}
-              />
-              {hoveredKind === kind && (
-                <p style={{
-                  position: 'absolute', bottom: 16, left: '50%', transform: 'translateX(-50%)',
-                  margin: 0, fontSize: 10, color: '#e4eade', opacity: 0.75,
-                  whiteSpace: 'nowrap', pointerEvents: 'none',
-                }}>
-                  {kindLabel(kind)}
-                </p>
-              )}
-            </div>
+              type="button"
+              onMouseDown={(e) => { e.preventDefault(); e.stopPropagation() }}
+              onClick={() => selectKind(kind)}
+              style={{
+                width: 11, height: 11, borderRadius: '50%', padding: 0, cursor: 'pointer',
+                backgroundColor: kindColor(kind),
+                border: data.pendingKind === kind ? '1.5px solid #e4eade' : '1.5px solid transparent',
+                boxShadow: `0 0 6px ${kindColor(kind)}`,
+                opacity: data.pendingKind && data.pendingKind !== kind ? 0.4 : 1,
+                transition: 'opacity 0.15s ease, border-color 0.15s ease',
+              }}
+            />
           ))}
-          {hintState === 'pulsing' && (
+          {hintState === 'pulsing' && hintPos && createPortal(
             <div
               onMouseEnter={onHintHover}
               style={{
+                position: 'fixed',
+                top: hintPos.y, left: hintPos.x,
+                transform: `translateY(-50%) ${hintPos.side === 'left' ? 'translateX(-100%)' : ''}`,
                 display: 'flex', alignItems: 'center', gap: 7,
-                marginLeft: 8, cursor: 'default',
+                flexDirection: hintPos.side === 'right' ? 'row' : 'row-reverse',
+                cursor: 'default', zIndex: 50,
                 opacity: hintFading ? 0 : 1,
                 transition: 'opacity 0.4s ease',
               }}
@@ -697,14 +693,25 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
               }}>
                 ✦
               </span>
-              <p style={{
-                margin: 0, fontSize: 10.5, color: '#e4c89e', opacity: 0.85,
-                fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: 'nowrap',
+              <div style={{
+                background: 'rgba(20, 22, 30, 0.92)',
+                border: '1px solid rgba(228, 200, 158, 0.35)',
+                borderRadius: 8,
+                padding: '6px 10px',
+                maxWidth: 150,
+                boxShadow: '0 0 14px rgba(228, 200, 158, 0.15)',
                 animation: 'arrow-text-in 0.25s ease forwards',
               }}>
-                Stars can only connect to their respective seed. Only connection stars can connect to both. Choose which seed you'd like to connect to.
-              </p>
-            </div>
+                <p style={{
+                  margin: 0, fontSize: 10.5, color: '#e4c89e', opacity: 0.9,
+                  fontFamily: "'Plus Jakarta Sans', sans-serif",
+                  whiteSpace: 'normal', lineHeight: 1.35,
+                }}>
+                  the color you pick decides which side this joins
+                </p>
+              </div>
+            </div>,
+            document.body
           )}
         </div>
       </div>
