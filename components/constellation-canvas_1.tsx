@@ -1737,7 +1737,7 @@ function CanvasInner({ seed1Label, seed2Label }: { seed1Label: string; seed2Labe
                     margin: '0 0 16px', fontSize: 13, lineHeight: 1.82,
                     color: '#2a2820', fontFamily: "'Plus Jakarta Sans', sans-serif",
                   }}>
-                    First of all, I really want to thank you for completing the first ever handwritten Interlinked prompt. It really means a lot, and I hope you genuinely put effort into the prompt today. I workshopped this first prompt with a journal entry from earlier this summer. It was an entry about how sometimes writing can feel like entering a void toward understanding. 
+                    First of all, I really want to thank you for completing the first ever handwritten Interlinked prompt. It really means a lot, and I hope you genuinely put effort into the prompt today. I workshopped this first prompt with a journal entry about how sometimes writing can feel like jumping into a void with hopes of understanding. Understanding something, anything. 
                   </p>
                   <p style={{
                     margin: '0 0 16px', fontSize: 13, lineHeight: 1.82,
