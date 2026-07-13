@@ -652,7 +652,7 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
           border: '1px solid rgba(228, 200, 158, 0.35)',
           borderRadius: 8,
           padding: '6px 10px',
-          width: 600,
+          width: 200,
           flexShrink: 0,
           boxShadow: '0 0 14px rgba(228, 200, 158, 0.15)',
           animation: 'arrow-text-in 0.25s ease forwards',
