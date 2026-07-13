@@ -575,17 +575,20 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
   }, [id, data.isValid, commitAs, setNodes])
 
   const onKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      if (!data.pendingKind) {
-        nudge('pick a color first')
-        return
-      }
-      if (!data.isValid) return
-      commitAs(data.pendingKind)
-    } else if (e.key === 'Escape') {
-      setNodes(nds => nds.filter(n => n.id !== id))
+  if (e.key === 'Enter') {
+    if (!data.pendingKind) {
+      nudge('pick a color first')
+      return
     }
-  }, [id, data.isValid, data.pendingKind, commitAs, setNodes, nudge])
+    if (!data.isValid) {
+      nudge('give it a few more words') 
+      return
+    }
+    commitAs(data.pendingKind)
+  } else if (e.key === 'Escape') {
+    setNodes(nds => nds.filter(n => n.id !== id))
+  }
+}, [id, data.isValid, data.pendingKind, commitAs, setNodes, nudge])
 
   const onBlur = useCallback(() => {
     if (data.charCount === 0) {
