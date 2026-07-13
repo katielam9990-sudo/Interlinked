@@ -52,6 +52,8 @@ type CompletionPhase = 'idle' | 'pulsing' | 'done'
 type ArrowState = 'hidden' | 'pulsing' | 'seen' | 'dismissed'
 type NodeKind = 'seed1' | 'seed2' | 'bridge'
 type CameraStage = 'seed1' | 'seed2' | 'zoomedOut'
+type ColorHintState = 'hidden' | 'pulsing' | 'dismissed'
+
 
 
 // ─── Completion context ───────────────────────────────────────────────────────
@@ -90,6 +92,10 @@ function kindLabel(kind: NodeKind): string {
 // ambient gate-message overlay owned by CanvasInner, without prop drilling.
 
 const NudgeCtx = createContext<{ nudge: (msg: string) => void }>({ nudge: () => {} })
+
+const ColorHintCtx = createContext<{ hintState: ColorHintState; dismissHint: () => void }>({
+  hintState: 'hidden', dismissHint: () => {},
+})
 
 
 // ─── Initial data ─────────────────────────────────────────────────────────────
@@ -535,7 +541,14 @@ function StarInput({ value, color, charCount, isValid, width = 190, placeholder,
 function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
   const { setNodes } = useReactFlow()
   const { nudge } = useContext(NudgeCtx)
+  const { hintState, dismissHint } = useContext(ColorHintCtx)
   const [hoveredKind, setHoveredKind] = useState<NodeKind | null>(null)
+  const [hintFading, setHintFading] = useState(false)
+
+  const onHintHover = () => {
+    setHintFading(true)
+    setTimeout(dismissHint, 400)   // lets the fade play before it's gone for good
+  }
 
   const onChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const text = e.target.value
@@ -667,6 +680,32 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
               )}
             </div>
           ))}
+          {hintState === 'pulsing' && (
+            <div
+              onMouseEnter={onHintHover}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 7,
+                marginLeft: 8, cursor: 'default',
+                opacity: hintFading ? 0 : 1,
+                transition: 'opacity 0.4s ease',
+              }}
+            >
+              <span style={{
+                fontSize: 14, color: '#e4c89e', lineHeight: 1,
+                animation: 'arrow-pulse 1.6s ease-in-out infinite',
+                textShadow: '0 0 8px #e4c89e, 0 0 16px rgba(228, 200, 158, 0.5)',
+              }}>
+                ✦
+              </span>
+              <p style={{
+                margin: 0, fontSize: 10.5, color: '#e4c89e', opacity: 0.85,
+                fontFamily: "'Plus Jakarta Sans', sans-serif", whiteSpace: 'nowrap',
+                animation: 'arrow-text-in 0.25s ease forwards',
+              }}>
+                Stars can only connect to their respective seed. Only connection stars can connect to both. Choose which seed you'd like to connect to.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -921,6 +960,8 @@ function CanvasInner({ seed1Label, seed2Label, onSnapshot, savedNodes, savedEdge
   const [showReplay, setShowReplay] = useState(false)
   const [cameraStage, setCameraStage] = useState<CameraStage>('seed1')
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 })
+  const [colorHintState, setColorHintState] = useState<ColorHintState>('hidden')
+  const dismissColorHint = useCallback(() => setColorHintState('dismissed'), [])
   const { screenToFlowPosition, getViewport, setViewport, fitView } = useReactFlow()
   const isEditingNode = nodes.some(n => n.data.justCreated)
   const nodesRef = useRef(nodes)
@@ -1268,6 +1309,7 @@ function CanvasInner({ seed1Label, seed2Label, onSnapshot, savedNodes, savedEdge
         pendingKind: null, bridgeUnlocked: isBridgeReady, size: 8,
       }
     }])
+    setColorHintState(prev => (prev === 'hidden' ? 'pulsing' : prev))
   }, [setNodes, isBridgeReady])
 
 
@@ -1468,6 +1510,7 @@ function CanvasInner({ seed1Label, seed2Label, onSnapshot, savedNodes, savedEdge
   return (
     <CompletionCtx.Provider value={{ litIds: litNodeIds, phase: completionPhase }}>
     <NudgeCtx.Provider value={{ nudge }}>
+    <ColorHintCtx.Provider value={{ hintState: colorHintState, dismissHint: dismissColorHint }}>
       <div
         ref={containerRef}
         style={{ width: '100%', height: '100%', position: 'relative' }}
@@ -1859,6 +1902,7 @@ function CanvasInner({ seed1Label, seed2Label, onSnapshot, savedNodes, savedEdge
           </div>
         )}
       </div>
+    </ColorHintCtx.Provider>
     </NudgeCtx.Provider>
     </CompletionCtx.Provider>
   )
