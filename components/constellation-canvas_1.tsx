@@ -709,13 +709,15 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
           }}>
             Each color ties a star to its particular seed.
           </p>
+          <p></p>
           <p style={{
             margin: 0, fontSize: 10.5, color: '#e4c89e', opacity: 0.9,
             fontFamily: "'Plus Jakarta Sans', sans-serif",
             whiteSpace: 'normal', lineHeight: 1.35,
           }}>
-            Only connecting stars can link to both sides. Choose a color for this idea.
+            Only connecting stars can link to both sides. 
           </p>
+          <p></p>
           <p style={{
             margin: 0, fontSize: 10.5, color: '#e4c89e', opacity: 0.9,
             fontFamily: "'Plus Jakarta Sans', sans-serif",
