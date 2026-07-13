@@ -91,32 +91,6 @@ function kindLabel(kind: NodeKind): string {
 
 const NudgeCtx = createContext<{ nudge: (msg: string) => void }>({ nudge: () => {} })
 
-
-// ─── Initial data ─────────────────────────────────────────────────────────────
-
-const initialNodes: InterlinkedNode[] = [
-  {
-    id: 'seed1', type: 'seed', position: { x: 200, y: 300 }, draggable: false,
-    data: {
-      text: "A belief you've released...", nodeType: 'seed', seedId: 'seed1', lockedSeed: 'seed1',
-      depth: 0, glowState: 'none', charCount: 0, isValid: false,
-      subtreeCount: 0, activated: false, visible: true,
-      selectedForBridge: false, justCreated: false,
-      pendingKind: null, bridgeUnlocked: false, moved: false,
-    }
-  },
-  {
-    id: 'seed2', type: 'seed', position: { x: 600, y: 300 }, draggable: false,
-    data: {
-      text: "What replaced it...", nodeType: 'seed', seedId: 'seed2', lockedSeed: 'seed2',
-      depth: 0, glowState: 'none', charCount: 0, isValid: false,
-      subtreeCount: 0, activated: false, visible: false,
-      selectedForBridge: false, justCreated: false,
-      pendingKind: null, bridgeUnlocked: false, moved: false,
-    }
-  }
-]
-
 const initialEdges: InterlinkedEdge[] = []
 
 // ─── Seed-reveal camera choreography ─────────────────────────────────────────
@@ -805,8 +779,29 @@ const nodeTypes: NodeTypes = { seed: SeedNode, star: StarNode, bridge: BridgeNod
 
 // ─── Canvas inner ─────────────────────────────────────────────────────────────
 
-function CanvasInner() {
-  const [nodes, setNodes, onNodesChange] = useNodesState<InterlinkedNode>(initialNodes)
+function CanvasInner({ seed1Label, seed2Label }: { seed1Label: string; seed2Label: string }) {
+  const [nodes, setNodes, onNodesChange] = useNodesState<InterlinkedNode>([
+    {
+      id: 'seed1', type: 'seed', position: { x: 200, y: 300 }, draggable: false,
+      data: {
+        text: seed1Label, nodeType: 'seed', seedId: 'seed1', lockedSeed: 'seed1',
+        depth: 0, glowState: 'none', charCount: 0, isValid: false,
+        subtreeCount: 0, activated: false, visible: true,
+        selectedForBridge: false, justCreated: false,
+        pendingKind: null, bridgeUnlocked: false, moved: false,
+      }
+    },
+    {
+      id: 'seed2', type: 'seed', position: { x: 600, y: 300 }, draggable: false,
+      data: {
+        text: seed2Label, nodeType: 'seed', seedId: 'seed2', lockedSeed: 'seed2',
+        depth: 0, glowState: 'none', charCount: 0, isValid: false,
+        subtreeCount: 0, activated: false, visible: false,
+        selectedForBridge: false, justCreated: false,
+        pendingKind: null, bridgeUnlocked: false, moved: false,
+      }
+    }
+  ])
   const [edges, setEdges, onEdgesChange] = useEdgesState<InterlinkedEdge>(initialEdges)
   const containerRef = useRef<HTMLDivElement>(null)
   const [pendingAnchorPos, setPendingAnchorPos] = useState({ x: 0, y: 0 })
@@ -1764,11 +1759,11 @@ function CanvasInner() {
 
 // ─── Root export ──────────────────────────────────────────────────────────────
 
-export function ConstellationCanvas() {
+export function ConstellationCanvas({ seed1Label, seed2Label }: { seed1Label: string; seed2Label: string }) {
   return (
     <div style={{ width: '100%', height: '100%' }}>
       <ReactFlowProvider>
-        <CanvasInner />
+        <CanvasInner seed1Label={seed1Label} seed2Label={seed2Label} />
       </ReactFlowProvider>
     </div>
   )

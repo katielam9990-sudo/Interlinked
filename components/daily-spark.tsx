@@ -72,11 +72,24 @@ const HELP_QUESTIONS = [
 
 // Deterministic seeded PRNG so server and client render identical star fields.
 
-export function DailySpark() {
+type PromptRow = {
+  prompt_text: string | null
+  seed1_label: string | null
+  seed2_label: string | null
+}
+
+export function DailySpark({ promptData }: { promptData: PromptRow | null }) {
 
   // Citation sidebar state
-  const [prompt, setPrompt] = useState(DEFAULT_PROMPT)
-  const [seeds, setSeeds] = useState<Seed[]>(DEFAULT_SEEDS)
+  const [prompt, setPrompt] = useState(promptData?.prompt_text ?? DEFAULT_PROMPT)
+  const [seeds, setSeeds] = useState<Seed[]>(
+    promptData?.seed1_label && promptData?.seed2_label
+      ? [
+          { text: promptData.seed1_label, x: 380, y: 300 },
+          { text: promptData.seed2_label, x: 720, y: 500 },
+        ]
+      : DEFAULT_SEEDS
+  )
   const [citations, setCitations] = useState<Citation[]>(DEFAULT_CITATIONS)
   const [editing, setEditing] = useState(false)
   const [phase, setPhase] = useState<Phase>('intro')
@@ -449,7 +462,12 @@ export function DailySpark() {
 
       {/* Canvas */}
       <section className="relative flex-1 h-screen">
-      {phase === 'ready' && <ConstellationCanvas />}
+      {phase === 'ready' && (
+        <ConstellationCanvas
+          seed1Label={seeds[0].text}
+          seed2Label={seeds[1].text}
+        />
+      )}
       </section>
     </div>
   )
