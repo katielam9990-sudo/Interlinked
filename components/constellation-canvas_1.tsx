@@ -539,6 +539,7 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
   const [hintHovered, setHintHovered] = useState(false)
   const [hintSide, setHintSide] = useState<'right' | 'left'>('right')
   const stripRef = useRef<HTMLDivElement>(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
 
   const restoreOriginal = useCallback(() => {
     const orig = data.originalText ?? ''
@@ -573,9 +574,12 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
   useEffect(() => {
     if (hintState === 'hidden') return
     const frame = requestAnimationFrame(() => {
-      if (!stripRef.current) return
-      const rect = stripRef.current.getBoundingClientRect()
-      if (rect.right + 200 > window.innerWidth) setHintSide('left')
+      if (!wrapRef.current) return
+      const rect = wrapRef.current.getBoundingClientRect()
+      const HINT_SPACE = 290   // bubbles + beacon + card, roughly
+      const roomRight = window.innerWidth - rect.right
+      const roomLeft = rect.left
+      setHintSide(roomRight >= HINT_SPACE || roomRight >= roomLeft ? 'right' : 'left')
     })
     return () => cancelAnimationFrame(frame)
   }, [hintState])
@@ -703,7 +707,7 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
             fontFamily: "'Plus Jakarta Sans', sans-serif",
             whiteSpace: 'normal', lineHeight: 1.35,
           }}>
-            Each color ties a star to its particular seed. Only connecting stars can link to both sides. Choose a color for this idea.
+            Each color ties a star to its particular seed.
           </p>
           <p style={{
             margin: 0, fontSize: 10.5, color: '#e4c89e', opacity: 0.9,
@@ -736,7 +740,12 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
         boxShadow: `0 0 8px ${color}`,
         transition: 'background-color 0.2s ease, opacity 0.2s ease',
       }} />
-      <div style={{ position: 'relative', marginTop: 8 }}>
+      <div style={{
+          position: 'absolute', left: '100%', top: '50%',
+          transform: 'translateY(-50%)', marginLeft: 10,
+          display: 'flex', gap: 6, alignItems: 'center',
+          width: 'max-content',
+        }}>
         <StarInput
           value={data.text} color={color}
           charCount={data.charCount} isValid={data.isValid}
