@@ -850,6 +850,8 @@ function CanvasInner({ seed1Label, seed2Label }: { seed1Label: string; seed2Labe
   const [canvasSize, setCanvasSize] = useState({ width: 0, height: 0 })
   const { screenToFlowPosition, getViewport, setViewport, fitView } = useReactFlow()
   const isEditingNode = nodes.some(n => n.data.justCreated)
+  const nodesRef = useRef(nodes)
+  nodesRef.current = nodes   
 
   // Gentle nudge — reuses the ambient gateMessage slot, e.g. "pick a color first"
   const nudge = useCallback((msg: string) => {
@@ -1194,7 +1196,7 @@ function CanvasInner({ seed1Label, seed2Label }: { seed1Label: string; seed2Labe
   //   — before seed2 exists → create a seed1 idea directly (only one option)
   //   — otherwise → open the input + color-bubble strip in place
   const onDoubleClick = useCallback((e: React.MouseEvent) => {
-    if (isEditingNode) return
+    if (nodesRef.current.some(n => n.data.justCreated)) return
     if (completionPhase === 'pulsing') return
     if (cardOpen) return
     if (!(e.target as Element).classList.contains('react-flow__pane')) return
