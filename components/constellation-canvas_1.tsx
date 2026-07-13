@@ -91,6 +91,32 @@ function kindLabel(kind: NodeKind): string {
 
 const NudgeCtx = createContext<{ nudge: (msg: string) => void }>({ nudge: () => {} })
 
+
+// ─── Initial data ─────────────────────────────────────────────────────────────
+
+const initialNodes: InterlinkedNode[] = [
+  {
+    id: 'seed1', type: 'seed', position: { x: 200, y: 300 }, draggable: false,
+    data: {
+      text: "A belief you've released...", nodeType: 'seed', seedId: 'seed1', lockedSeed: 'seed1',
+      depth: 0, glowState: 'none', charCount: 0, isValid: false,
+      subtreeCount: 0, activated: false, visible: true,
+      selectedForBridge: false, justCreated: false,
+      pendingKind: null, bridgeUnlocked: false, moved: false,
+    }
+  },
+  {
+    id: 'seed2', type: 'seed', position: { x: 600, y: 300 }, draggable: false,
+    data: {
+      text: "What replaced it...", nodeType: 'seed', seedId: 'seed2', lockedSeed: 'seed2',
+      depth: 0, glowState: 'none', charCount: 0, isValid: false,
+      subtreeCount: 0, activated: false, visible: false,
+      selectedForBridge: false, justCreated: false,
+      pendingKind: null, bridgeUnlocked: false, moved: false,
+    }
+  }
+]
+
 const initialEdges: InterlinkedEdge[] = []
 
 // ─── Seed-reveal camera choreography ─────────────────────────────────────────
