@@ -76,6 +76,8 @@ type PromptRow = {
   prompt_text: string | null
   seed1_label: string | null
   seed2_label: string | null
+  citations: { text: string; author: string }[] | null
+  thinking_questions: string[] | null
 }
 
 export function DailySpark({ promptData }: { promptData: PromptRow | null }) {
@@ -90,11 +92,18 @@ export function DailySpark({ promptData }: { promptData: PromptRow | null }) {
         ]
       : DEFAULT_SEEDS
   )
-  const [citations, setCitations] = useState<Citation[]>(DEFAULT_CITATIONS)
+  const [citations, setCitations] = useState<Citation[]>(() => {
+    if (promptData?.citations?.length) {
+        return promptData.citations.map((c, i) => ({ id: `c${i}`, ...c }))
+      }
+    return DEFAULT_CITATIONS
+  })
   const [editing, setEditing] = useState(false)
   const [phase, setPhase] = useState<Phase>('intro')
   const [helpOpen, setHelpOpen] = useState(false)
-  const [helpQuestions, setHelpQuestions] = useState(HELP_QUESTIONS)
+  const [helpQuestions, setHelpQuestions] = useState<string[]>(
+    promptData?.thinking_questions ?? HELP_QUESTIONS
+  )
   const [canvasKey, setCanvasKey] = useState(0)
   const [profile, setProfile] = useState<CreatorProfile>(DEFAULT_PROFILE)
 
