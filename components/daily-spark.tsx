@@ -82,7 +82,7 @@ type PromptRow = {
   thinking_questions: string[] | null
 }
 
-export function DailySpark({ promptData }: { promptData: PromptRow | null }) {
+export function DailySpark({ promptData, skipIntro }: { promptData: PromptRow | null; skipIntro?: boolean}) {
 
   // Citation sidebar state
   const [prompt, setPrompt] = useState(promptData?.prompt_text ?? DEFAULT_PROMPT)
@@ -101,7 +101,7 @@ export function DailySpark({ promptData }: { promptData: PromptRow | null }) {
     return DEFAULT_CITATIONS
   })
   const [editing, setEditing] = useState(false)
-  const [phase, setPhase] = useState<Phase>('intro')
+  const [phase, setPhase] = useState<Phase>(skipIntro ? 'ready' : 'intro')
   const [helpOpen, setHelpOpen] = useState(false)
   const [helpQuestions, setHelpQuestions] = useState<string[]>(
     promptData?.thinking_questions ?? HELP_QUESTIONS
