@@ -6,7 +6,7 @@ export default async function Page() {
     .from('prompts')
     .select('*')
     .eq('published', true)
-    .order('publish_date', { ascending: false })
+    .order('published_date', { ascending: false })
     .limit(1)
     .single()
 
