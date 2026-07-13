@@ -143,6 +143,29 @@ export function DailySpark({ promptData }: { promptData: PromptRow | null }) {
     return () => sub.subscription.unsubscribe()
   }, [])
 
+  const [savedData, setSavedData] = useState<{ nodes: any; edges: any } | null>(null)
+  const [saveLoaded, setSaveLoaded] = useState(false)
+
+  useEffect(() => {
+    if (!promptData) { setSaveLoaded(true); return }
+
+    async function loadSaved() {
+      if (userId) {
+        const { data } = await supabase
+          .from('constellations')
+          .select('nodes, edges')
+          .eq('user_id', userId)
+          .eq('prompt_id', promptData!.id)
+          .maybeSingle()
+        if (data) setSavedData({ nodes: data.nodes, edges: data.edges })
+      } else {
+        const raw = localStorage.getItem(`constellation-${promptData!.id}`)
+        if (raw) setSavedData(JSON.parse(raw))
+      }
+      setSaveLoaded(true)
+    }
+    loadSaved()
+  }, [userId, promptData])
 
   const updateCitation = useCallback(
     (id: string, field: "text" | "author", value: string) => {
@@ -503,11 +526,13 @@ export function DailySpark({ promptData }: { promptData: PromptRow | null }) {
 
       {/* Canvas */}
       <section className="relative flex-1 h-screen">
-      {phase === 'ready' && (
+      {phase === 'ready' && saveLoaded && (
         <ConstellationCanvas
           seed1Label={seeds[0].text}
           seed2Label={seeds[1].text}
           onSnapshot={handleSnapshot}
+          savedNodes={savedData?.nodes ?? null}
+          savedEdges={savedData?.edges ?? null}
         />
       )}
       </section>

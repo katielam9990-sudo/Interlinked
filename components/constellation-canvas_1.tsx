@@ -805,8 +805,10 @@ const nodeTypes: NodeTypes = { seed: SeedNode, star: StarNode, bridge: BridgeNod
 
 // ─── Canvas inner ─────────────────────────────────────────────────────────────
 
-function CanvasInner({ seed1Label, seed2Label, onSnapshot }: { seed1Label: string; seed2Label: string; onSnapshot?: (nodes: unknown, edges: unknown) => void}) {
-  const [nodes, setNodes, onNodesChange] = useNodesState<InterlinkedNode>([
+function CanvasInner({ seed1Label, seed2Label, onSnapshot, savedNodes, savedEdges }: { seed1Label: string; seed2Label: string; onSnapshot?: (nodes: unknown, edges: unknown) => void; savedNodes?: InterlinkedNode[] | null; savedEdges?: InterlinkedEdge[] | null}) {
+  const [nodes, setNodes, onNodesChange] = useNodesState<InterlinkedNode>(
+    savedNodes && savedNodes.length > 0
+    ? savedNodes : [
     {
       id: 'seed1', type: 'seed', position: { x: 200, y: 300 }, draggable: false,
       data: {
@@ -828,7 +830,9 @@ function CanvasInner({ seed1Label, seed2Label, onSnapshot }: { seed1Label: strin
       }
     }
   ])
-  const [edges, setEdges, onEdgesChange] = useEdgesState<InterlinkedEdge>(initialEdges)
+  const [edges, setEdges, onEdgesChange] = useEdgesState<InterlinkedEdge>(
+    savedEdges && savedEdges.length > 0 ? savedEdges : initialEdges
+  )
   const containerRef = useRef<HTMLDivElement>(null)
   const [pendingAnchorPos, setPendingAnchorPos] = useState({ x: 0, y: 0 })
   const [pendingSourceId, setPendingSourceId] = useState<string | null>(null)
@@ -1794,15 +1798,17 @@ function CanvasInner({ seed1Label, seed2Label, onSnapshot }: { seed1Label: strin
 
 // ─── Root export ──────────────────────────────────────────────────────────────
 
-export function ConstellationCanvas({ seed1Label, seed2Label, onSnapshot }: {
+export function ConstellationCanvas({ seed1Label, seed2Label, onSnapshot, savedNodes, savedEdges }: {
   seed1Label: string
   seed2Label: string
   onSnapshot?: (nodes: unknown, edges: unknown) => void
+  savedNodes?: InterlinkedNode[] | null
+  savedEdges?: InterlinkedEdge[] | null
 }) {
   return (
     <div style={{ width: '100%', height: '100%' }}>
       <ReactFlowProvider>
-        <CanvasInner seed1Label={seed1Label} seed2Label={seed2Label} onSnapshot={onSnapshot}/>
+        <CanvasInner seed1Label={seed1Label} seed2Label={seed2Label} onSnapshot={onSnapshot} savedNodes={savedNodes} savedEdges={savedEdges}/>
       </ReactFlowProvider>
     </div>
   )
