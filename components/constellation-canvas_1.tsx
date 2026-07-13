@@ -396,9 +396,14 @@ function StarNode({ data, id, dragging }: NodeProps<InterlinkedNode>) {
         } : n))
       }
     } else {
-      if (data.charCount === 0) {
+      if (data.isValid) {
+        setNodes(nds => nds.map(n => n.id === id ? {
+          ...n, draggable: true,
+          data: { ...n.data, justCreated: false, originalText: undefined, size: getStarSize(n.data.charCount as number) }
+        } : n))
+      } else if (data.charCount === 0) {
         setNodes(nds => nds.filter(n => n.id !== id))
-      } else if (!data.isValid) {
+      } else {
         nudge('a few more words and it becomes a star')
       }
     }
@@ -745,9 +750,14 @@ function BridgeNode({ id, data, dragging }: NodeProps<InterlinkedNode>) {
         } : n))
       }
     } else {
-      if (data.charCount === 0) {
+      if (data.isValid) {
+        setNodes(nds => nds.map(n => n.id === id ? {
+          ...n, draggable: true,
+          data: { ...n.data, justCreated: false, originalText: undefined, size: 13 }
+        } : n))
+      } else if (data.charCount === 0) {
         setNodes(nds => nds.filter(n => n.id !== id))
-      } else if (!data.isValid) {
+      } else {
         nudge('a few more words and it becomes a star')
       }
     }
