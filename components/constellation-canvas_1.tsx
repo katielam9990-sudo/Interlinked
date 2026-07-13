@@ -417,12 +417,15 @@ function StarNode({ data, id, dragging }: NodeProps<InterlinkedNode>) {
 
   if (data.justCreated) {
     return (
-      <div className="relative flex flex-col items-center">
+      <div style={{ position: 'relative', width: 8, height: 8 }}>
         <div style={{
           width: 8, height: 8, borderRadius: '50%',
           backgroundColor: color, opacity: 0.4, boxShadow: `0 0 8px ${color}`,
         }} />
-        <div style={{ marginTop: 8 }}>
+        <div style={{
+          position: 'absolute', top: '100%', left: '50%',
+          transform: 'translateX(-50%)', marginTop: 8, width: 'max-content',
+        }}>
           <StarInput
             value={data.text} color={color}
             charCount={data.charCount} isValid={data.isValid}
@@ -538,7 +541,6 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
   const { hintState, dismissHint } = useContext(ColorHintCtx)
   const [hintHovered, setHintHovered] = useState(false)
   const [hintSide, setHintSide] = useState<'right' | 'left'>('right')
-  const stripRef = useRef<HTMLDivElement>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
 
   const restoreOriginal = useCallback(() => {
@@ -709,17 +711,15 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
           }}>
             Each color ties a star to its particular seed.
           </p>
-          <p></p>
           <p style={{
-            margin: 0, fontSize: 10.5, color: '#e4c89e', opacity: 0.9,
+            marginTop: 6, fontSize: 10.5, color: '#e4c89e', opacity: 0.9,
             fontFamily: "'Plus Jakarta Sans', sans-serif",
             whiteSpace: 'normal', lineHeight: 1.35,
           }}>
             Only connecting stars can link to both sides. 
           </p>
-          <p></p>
           <p style={{
-            margin: 0, fontSize: 10.5, color: '#e4c89e', opacity: 0.9,
+            marginTop: 6, fontSize: 10.5, color: '#e4c89e', opacity: 0.9,
             fontFamily: "'Plus Jakarta Sans', sans-serif",
             whiteSpace: 'normal', lineHeight: 1.35,
           }}>
@@ -735,19 +735,21 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
   // absolutely-positioned overlay beside the input, so it doesn't shift that
   // anchor or the node's centering.
   return (
-    <div className="relative flex flex-col items-center">
+    <div style={{ position: 'relative', width: 8, height: 8 }}>
+      {/* the dot — this IS the node, so edges anchor here */}
       <div style={{
         width: 8, height: 8, borderRadius: '50%',
         backgroundColor: color, opacity: data.pendingKind ? 0.6 : 0.35,
         boxShadow: `0 0 8px ${color}`,
         transition: 'background-color 0.2s ease, opacity 0.2s ease',
       }} />
-      <div style={{
-          position: 'absolute', left: '100%', top: '50%',
-          transform: 'translateY(-50%)', marginLeft: 10,
-          display: 'flex', gap: 6, alignItems: 'center',
-          width: 'max-content',
-        }}>
+
+      {/* input column — absolute, so it doesn't grow the node's bounding box */}
+      <div ref={wrapRef} style={{
+        position: 'absolute', top: '100%', left: '50%',
+        transform: 'translateX(-50%)', marginTop: 8,
+        width: 'max-content',
+      }}>
         <StarInput
           value={data.text} color={color}
           charCount={data.charCount} isValid={data.isValid}
@@ -755,8 +757,8 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
           onChange={onChange} onKeyDown={onKeyDown} onBlur={onBlur}
         />
 
-        {/* Color bubbles — beside the input. Minimal: no menu chrome, just dots. */}
-        <div ref={stripRef} style={{
+        {/* Color bubbles — beside the input */}
+        <div style={{
           position: 'absolute', left: '100%', top: '50%',
           transform: 'translateY(-50%)', marginLeft: 10,
           display: 'flex', gap: 6, alignItems: 'center',
@@ -893,22 +895,24 @@ function BridgeNode({ id, data, dragging }: NodeProps<InterlinkedNode>) {
 
   if (data.justCreated) {
     return (
-      <div className="relative flex flex-col items-center">
+      <div style={{ position: 'relative', width: 8, height: 8 }}>
         <div style={{
-          position: 'absolute',
-          width: 20, height: 20, borderRadius: '50%',
+          position: 'absolute', width: 20, height: 20, borderRadius: '50%',
           border: '1px solid rgba(212, 208, 232, 0.4)',
-          top: 4, left: '50%', transform: 'translateX(-50%)',
+          top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
         }} />
         <div style={{
           width: 8, height: 8, borderRadius: '50%',
           backgroundColor: color, opacity: 0.5, boxShadow: `0 0 10px ${color}`,
         }} />
-        <div style={{ marginTop: 8 }}>
+        <div style={{
+          position: 'absolute', top: '100%', left: '50%',
+          transform: 'translateX(-50%)', marginTop: 10, width: 'max-content',
+        }}>
           <StarInput
             value={data.text} color={color}
             charCount={data.charCount} isValid={data.isValid}
-            width={200} placeholder="What connects them..."
+            width={220} placeholder="The idea that connects both sides..."
             onChange={onChange} onKeyDown={onKeyDown} onBlur={onBlur}
           />
         </div>
@@ -916,6 +920,7 @@ function BridgeNode({ id, data, dragging }: NodeProps<InterlinkedNode>) {
         <Handle type="source" position={Position.Right} style={centeredHandle} />
       </div>
     )
+
   }
 
   const finalSize = data.size ?? 13
