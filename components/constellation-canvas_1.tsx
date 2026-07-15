@@ -42,6 +42,7 @@ type InterlinkedNodeData = {
   pendingKind: NodeKind | null      // color-bubble selection during 'creating' state
   bridgeUnlocked: boolean           // snapshot of isBridgeReady, taken at creation
   moved?: boolean                   // seed only — true once user-dragged; freezes it off the fractional layout
+  seed2Available?: boolean
   [key: string]: unknown
   size?: number
 }
@@ -87,8 +88,8 @@ function kindColor(kind: NodeKind): string {
 
 const NudgeCtx = createContext<{ nudge: (msg: string) => void }>({ nudge: () => {} })
 
-const ColorHintCtx = createContext<{ hintState: ColorHintState; dismissHint: () => void }>({
-  hintState: 'hidden', dismissHint: () => {},
+const ColorHintCtx = createContext<{ hintState: ColorHintState; dismissHint: () => void; armHint: () => void }>({
+  hintState: 'hidden', dismissHint: () => {}, armHint: () => {},
 })
 
 
@@ -538,7 +539,7 @@ function StarInput({ value, color, charCount, isValid, width = 190, placeholder,
 function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
   const { setNodes } = useReactFlow()
   const { nudge } = useContext(NudgeCtx)
-  const { hintState, dismissHint } = useContext(ColorHintCtx)
+  const { hintState, dismissHint, armHint } = useContext(ColorHintCtx)
   const [hintHovered, setHintHovered] = useState(false)
   const [hintSide, setHintSide] = useState<'right' | 'left'>('right')
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -669,7 +670,18 @@ function CreatingNode({ id, data }: NodeProps<InterlinkedNode>) {
   }, [id, data.charCount, data.isValid, data.pendingKind, data.originalText, commitAs, restoreOriginal, setNodes, nudge])
 
   const color = data.pendingKind ? kindColor(data.pendingKind) : NEUTRAL_COLOR
-  const bubbleKinds: NodeKind[] = ['seed1', 'seed2', ...(data.bridgeUnlocked ? (['bridge'] as NodeKind[]) : [])]
+  const bubbleKinds: NodeKind[] = [
+    'seed1', 
+    ...(data.seed2Available ? (['seed2'] as NodeKind[]) : []),
+    ...(data.bridgeUnlocked ? (['bridge'] as NodeKind[]) : []),
+  ]
+
+  // First time this user is shown a real color choice (from ANY path — create or edit),
+  // arm the explanation beacon. Once dismissed it never fires again.
+  useEffect(() => {
+    if (bubbleKinds.length > 1 && hintState === 'hidden') armHint()
+  }, [bubbleKinds.length, hintState, armHint])
+
 
   const showHintCard = hintState === 'pulsing' || hintHovered
 
@@ -1051,6 +1063,7 @@ function CanvasInner({ seed1Label, seed2Label, onSnapshot, savedNodes, savedEdge
   const [colorHintState, setColorHintState] = useState<ColorHintState>('hidden')
   const colorLockNudged = useRef(false)
   const dismissColorHint = useCallback(() => setColorHintState('dismissed'), [])
+  const armHint = useCallback(() => setColorHintState(prev => (prev === 'hidden' ? 'pulsing' : prev)), [])
   const { screenToFlowPosition, getViewport, setViewport, fitView } = useReactFlow()
   const isEditingNode = nodes.some(n => n.data.justCreated)
   const nodesRef = useRef(nodes)
@@ -1395,10 +1408,9 @@ function CanvasInner({ seed1Label, seed2Label, onSnapshot, savedNodes, savedEdge
         text: '', nodeType: 'star', seedId: null, lockedSeed: null, depth: 1,
         glowState: 'none', charCount: 0, isValid: false, subtreeCount: 0,
         activated: false, visible: true, selectedForBridge: false, justCreated: true,
-        pendingKind: null, bridgeUnlocked: isBridgeReady, size: 8,
+        pendingKind: null, bridgeUnlocked: isBridgeReady, seed2Available: true, size: 8,
       }
     }])
-    setColorHintState(prev => (prev === 'hidden' ? 'pulsing' : prev))
   }, [setNodes, isBridgeReady])
 
 
@@ -1538,9 +1550,10 @@ function CanvasInner({ seed1Label, seed2Label, onSnapshot, savedNodes, savedEdge
           originalText: n.data.text, originalKind,
           pendingKind: originalKind,
           bridgeUnlocked: isBridgeReady || node.data.nodeType === 'bridge',
+          seed2Available: seed2Visible,
         }
       } : n))
-    }, [setNodes, completionPhase, edges, isBridgeReady])
+    }, [setNodes, completionPhase, edges, isBridgeReady, seed2Visible])
 
 
   // Click empty canvas → cancel pending connection
@@ -1623,7 +1636,7 @@ function CanvasInner({ seed1Label, seed2Label, onSnapshot, savedNodes, savedEdge
   return (
     <CompletionCtx.Provider value={{ litIds: litNodeIds, phase: completionPhase }}>
     <NudgeCtx.Provider value={{ nudge }}>
-    <ColorHintCtx.Provider value={{ hintState: colorHintState, dismissHint: dismissColorHint }}>
+    <ColorHintCtx.Provider value={{ hintState: colorHintState, dismissHint: dismissColorHint, armHint }}>
       <div
         ref={containerRef}
         style={{ width: '100%', height: '100%', position: 'relative' }}
