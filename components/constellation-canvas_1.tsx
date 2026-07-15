@@ -138,6 +138,11 @@ const CAMERA_DURATION = 1100
 // beat to register before the scripted pan starts, so the camera doesn't
 // jump mid-animation.
 const CAMERA_PAN_DELAY = 650
+// Completion pulse timing: on the first completion, wait for the connection's
+// snap-flash to finish before zooming out; on replay nothing is animating, so
+// just a small beat so the click registers.
+const LINK_SETTLE_DELAY = 1500
+const REPLAY_LEAD_IN = 150
 
 
 // ─── Pure utilities ───────────────────────────────────────────────────────────
@@ -1230,17 +1235,17 @@ function CanvasInner({ seed1Label, seed2Label, onSnapshot, savedNodes, savedEdge
     originId: string,
     allNodes: InterlinkedNode[],
     allEdges: InterlinkedEdge[],
+    initialDelay: number,
     onComplete?: () => void
   ) => {
     completionTriggered.current = true
     setCompletionPhase('pulsing')
 
     const ZOOM_DURATION = 900
-    const FIT_VIEW_DELAY = 1500
-    const PULSE_START_DELAY = FIT_VIEW_DELAY + ZOOM_DURATION + 150   // let the zoom fully settle first
+    const PULSE_START_DELAY = initialDelay + ZOOM_DURATION + 150   // let the zoom fully settle first
 
     // Zoom out to reveal the whole constellation
-    setTimeout(() => fitView({ duration: ZOOM_DURATION, padding: 0.35 }), FIT_VIEW_DELAY)
+    setTimeout(() => fitView({ duration: ZOOM_DURATION, padding: 0.35 }), initialDelay)
 
     // BFS: build layer-by-layer order from the origin
     const layers: string[][] = [[originId]]
@@ -1325,7 +1330,7 @@ function CanvasInner({ seed1Label, seed2Label, onSnapshot, savedNodes, savedEdge
       }
       if (connectedSeedIds.size >= 2) {
         completionBridgeId.current = bridgeNode.id
-        triggerCompletionPulse(bridgeNode.id, nodes, edges)
+        triggerCompletionPulse(bridgeNode.id, nodes, edges, LINK_SETTLE_DELAY)
         return
       }
     }
@@ -1346,7 +1351,7 @@ function CanvasInner({ seed1Label, seed2Label, onSnapshot, savedNodes, savedEdge
     setShowReplay(false)
     setLitNodeIds(new Set())
     setCompletionFlashEdges([])
-    triggerCompletionPulse(completionBridgeId.current, nodes, edges, () => {
+    triggerCompletionPulse(completionBridgeId.current, nodes, edges, REPLAY_LEAD_IN, () => {
       setShowReplay(true)
     })
   }, [nodes, edges, triggerCompletionPulse])
@@ -2026,29 +2031,4 @@ function CanvasInner({ seed1Label, seed2Label, onSnapshot, savedNodes, savedEdge
               </div>
             </div>
           </div>
-        )}
-      </div>
-    </ColorHintCtx.Provider>
-    </NudgeCtx.Provider>
-    </CompletionCtx.Provider>
-  )
-}
-
-
-// ─── Root export ──────────────────────────────────────────────────────────────
-
-export function ConstellationCanvas({ seed1Label, seed2Label, onSnapshot, savedNodes, savedEdges }: {
-  seed1Label: string
-  seed2Label: string
-  onSnapshot?: (nodes: unknown, edges: unknown) => void
-  savedNodes?: InterlinkedNode[] | null
-  savedEdges?: InterlinkedEdge[] | null
-}) {
-  return (
-    <div style={{ width: '100%', height: '100%' }}>
-      <ReactFlowProvider>
-        <CanvasInner seed1Label={seed1Label} seed2Label={seed2Label} onSnapshot={onSnapshot} savedNodes={savedNodes} savedEdges={savedEdges}/>
-      </ReactFlowProvider>
-    </div>
-  )
-}
+        

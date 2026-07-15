@@ -7,26 +7,27 @@ Walk the regression script (see month guide) after every canvas change; log what
 
 ## Open
 
-### P1 — Edit-mode color menu appears too early, with no explanation
-- **Symptom:** Commit a seed-1 idea, then double-click it to edit. The full color-bubble menu opens — including a seed-2 (green) color — even when the user has only been introduced to one side. No beacon/explanation of what the colors mean appears on this path.
-- **Related:** The "only a connector can connect the two sides" nudge (fires when linking a green star to the orange seed) references "two sides" the user hasn't met yet at this stage — unhelpful wording out of context.
-- **Where:** `onNodeDoubleClick` (unconnected branch flips node to `type: 'creating'`); `CreatingNode` bubble strip (`bubbleKinds`); color-hint gating (`colorHintState`, armed only in `createChoiceNode`).
-- **Status:** Diagnosed. Two independent sub-bugs behind one symptom; the "two sides" nudge is downstream of sub-bug 1.
-- **Root cause:** Not "the menu shouldn't show" — editing an unconnected star *should* bring the bubbles back (regression step: "Edit an unconnected star → bubbles return, color change works"). The real defects are (1) the menu's *contents* ignore the user's stage, and (2) the explanation beacon is welded to one code path.
-- **Approach (agreed):**
-  1. **Contents (sub-bug 1):** `bubbleKinds` is hardcoded to `['seed1','seed2', …]` — offers seed2 before it exists. Gate it by seed2-visibility, snapshotted into node `data` the same way `bridgeUnlocked` already is (set at the 3 build/edit spots: `createNode`, `createChoiceNode`, `onNodeDoubleClick`). Don't reach for live `seed2Visible` from inside `CreatingNode`; follow the existing snapshot rail.
-  2. **Beacon (sub-bug 2):** The `hidden → pulsing` arming line lives only in `createChoiceNode`, so the edit path never arms it. Move arming into `CreatingNode` (every menu path renders it) via a `useEffect`: `if (bubbleKinds.length > 1 && hintState === 'hidden') armHint()`. Expose a new `armHint` through `ColorHintCtx` (twin of `dismissHint`), then **delete** the arming line from `createChoiceNode`.
-  3. Effect dep array must list `bubbleKinds.length`, `hintState`, `armHint` (same exhaustive-deps discipline as the fix above).
-- **Test:** Re-walk the full regression, especially "Edit an unconnected star" and the first-multicolor-menu encounter; confirm the "two sides" nudge no longer reachable before seed2 exists.
-
 ### P2 — Duplicated input-node handlers across three components
 - **Symptom:** `StarNode`, `BridgeNode`, and `CreatingNode` each carry near-identical `onChange` / `onKeyDown` / `onBlur` + `justCreated` lifecycle logic, copy-pasted. Copies drift — the stale-`charCount` bug below existed in two of them but not the third.
 - **Fix (deferred):** Extract shared input-node behavior into one `useInputNode` hook so a fix lands once. Do this on a Sunday review slot, not mid-launch — it forces a full regression re-walk.
 - **Where:** `components/constellation-canvas_1.tsx` — `StarNode`, `BridgeNode`, `CreatingNode`.
 
+### P3 — Beacon stays pulsing if never hovered
+- **Symptom:** The color beacon only goes `pulsing → dismissed` on hover (`onMouseEnter` in `CreatingNode`). A user who sees it, picks a color, and never hovers leaves `hintState` at `pulsing`, so it auto-opens again on every later menu — now including edits, since arming became path-independent.
+- **Fix idea:** Dismiss on first successful color-commit (`commitAs`), not only on hover. Small, post-launch.
+
+### P3 — Unlink nudge (recolor a connected star) is easy to miss — watch, don't fix yet
+- **Symptom:** Double-clicking a *connected* star fires "linked stars keep their color — unlink first to change it" through the ambient nudge overlay. It's subtle, and gated to once per session (`colorLockNudged`). It explains a non-event, off the bridge-completion critical path — low stakes.
+- **Decision:** Not fixing now. Revisit after Week 2 live testing: if a real tester actually gets stuck trying to recolor a connected star, promote it; otherwise leave it subtle. Let observed behavior decide, not speculation.
+
 ---
 
 ## Fixed
+
+### 2026-07-15 — Edit-mode color menu premature + unexplained
+- **Symptom:** Editing a committed seed-1 star opened the full color menu (incl. seed-2) before seed2 existed, with no explanation; made the out-of-context "two sides" nudge reachable.
+- **Root cause:** Two independent sub-bugs — (1) `bubbleKinds` was stage-blind (hardcoded seed1+seed2), (2) the beacon was armed only on the create path (`createChoiceNode`), never on edit.
+- **Fix:** (1) Added a `seed2Available` snapshot to node `data` (set in `createChoiceNode` + `onNodeDoubleClick`) and gated the seed-2 bubble on it. (2) Moved beacon arming out of `createChoiceNode` into a `useEffect` in `CreatingNode` (`bubbleKinds.length > 1 && hintState === 'hidden'`), via a new `armHint` exposed through `ColorHintCtx`. "Two sides" nudge no longer reachable before seed2 exists.
 
 ### 2026-07-15 — Short drafts deleted on click-away (stale closure)
 - **Symptom:** Type 1–9 chars in a new idea, click away → node deleted instead of nudging + keeping text. (Regression script step: "Type 4 chars, click away → nudge appears, text survives.")
