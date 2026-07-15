@@ -407,7 +407,7 @@ function StarNode({ data, id, dragging }: NodeProps<InterlinkedNode>) {
         nudge('a few more words and it becomes a star')
       }
     }
-  }, [id, data.isValid, data.originalText, setNodes, nudge])
+  }, [id, data.isValid, data.originalText, setNodes, nudge, data.charCount])
 
   const color = getNodeColor(data)
   const baseGlow = data.glowState === 'none' ? 5 : data.glowState === 'soft' ? 15 : 30
@@ -889,7 +889,7 @@ function BridgeNode({ id, data, dragging }: NodeProps<InterlinkedNode>) {
         nudge('a few more words and it becomes a star')
       }
     }
-  }, [id, data.isValid, data.originalText, setNodes, nudge])
+  }, [id, data.isValid, data.originalText, data.charCount, setNodes, nudge])
 
   const color = BRIDGE_COLOR
 
