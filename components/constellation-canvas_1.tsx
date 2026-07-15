@@ -2031,4 +2031,29 @@ function CanvasInner({ seed1Label, seed2Label, onSnapshot, savedNodes, savedEdge
               </div>
             </div>
           </div>
-        
+        )}
+      </div>
+    </ColorHintCtx.Provider>
+    </NudgeCtx.Provider>
+    </CompletionCtx.Provider>
+  )
+}
+
+
+// ─── Root export ──────────────────────────────────────────────────────────────
+
+export function ConstellationCanvas({ seed1Label, seed2Label, onSnapshot, savedNodes, savedEdges }: {
+  seed1Label: string
+  seed2Label: string
+  onSnapshot?: (nodes: unknown, edges: unknown) => void
+  savedNodes?: InterlinkedNode[] | null
+  savedEdges?: InterlinkedEdge[] | null
+}) {
+  return (
+    <div style={{ width: '100%', height: '100%' }}>
+      <ReactFlowProvider>
+        <CanvasInner seed1Label={seed1Label} seed2Label={seed2Label} onSnapshot={onSnapshot} savedNodes={savedNodes} savedEdges={savedEdges}/>
+      </ReactFlowProvider>
+    </div>
+  )
+}
