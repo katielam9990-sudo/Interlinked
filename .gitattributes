@@ -1,0 +1,13 @@
+# Normalize line endings. Store AND check out text files with LF everywhere,
+# so the Linux sandbox and Windows agree and files stop showing up as
+# fully-changed just because of CRLF vs LF.
+* text=auto eol=lf
+
+# Binary files git must never touch
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.woff  binary
+*.woff2 binary

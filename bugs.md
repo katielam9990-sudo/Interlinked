@@ -24,6 +24,11 @@ Walk the regression script (see month guide) after every canvas change; log what
 
 ## Fixed
 
+### 2026-07-15 — Replay felt laggy (reused delay tuned for a different context)
+- **Symptom:** Pressing the replay button sat in ~2.5s of dead air before anything happened — read as lag, not intention.
+- **Root cause:** Same species as the color-menu bug — one behavior reused in a context whose premise no longer held. Both the first completion and replay called the same `triggerCompletionPulse`, which hardcoded `FIT_VIEW_DELAY = 1500` to let the triggering connection's snap-flash finish before zooming. On replay nothing is animating, so that delay was pure empty waiting.
+- **Fix:** Gave `triggerCompletionPulse` an `initialDelay` param so each caller states its own intent — completion passes `LINK_SETTLE_DELAY` (1500, wait for the snap-flash), replay passes `REPLAY_LEAD_IN` (150, just a beat so the click registers). Chose a small beat over 0 so the start doesn't feel abrupt. (Note: `CAMERA_PAN_DELAY` on the build-phase pan effect is a separate, correct delay — left untouched.)
+
 ### 2026-07-15 — Edit-mode color menu premature + unexplained
 - **Symptom:** Editing a committed seed-1 star opened the full color menu (incl. seed-2) before seed2 existed, with no explanation; made the out-of-context "two sides" nudge reachable.
 - **Root cause:** Two independent sub-bugs — (1) `bubbleKinds` was stage-blind (hardcoded seed1+seed2), (2) the beacon was armed only on the create path (`createChoiceNode`), never on edit.
