@@ -78,12 +78,12 @@ const SECTIONS = [
   {
     eyebrow: "Creation through connection",
     title: "But creation is what made us human.",
-    body: "Before overconsumption, humans didn't hesitate to create connections. We named the animals we saw in the stars. We heard ourselves in the sound of the sea. We found ideas living inside another. This human ability to connect unconnected ideas is not a skill to learn. It is a skill to reclaim.",
+    body: "Before overconsumption, humans didn't hesitate to create connections. We named the animals we saw in the stars. We found ideas living inside another. This human ability to connect unconnected ideas is not a skill to learn,but it is a skill to reclaim.",
   },
   {
     eyebrow: "The daily bridge",
     title: "Two minutes to claim new connections",
-    body: "Each day, Interlinked presents a creator who will offer two ideas in the form of stars. The space between them is yours. Not to answer. Not to perform. To play. To explore a thought, draw a line, and find the connection that only you can find.",
+    body: "Each day, Interlinked presents a creator who will offer two ideas in the form of stars. The space between them is yours. To play. To explore a thought. To draw a line, and find the connection that only you can find.",
   },
   {
     eyebrow: "Begin your practice",
