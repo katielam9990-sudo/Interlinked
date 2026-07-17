@@ -225,10 +225,10 @@ function getSubtreeCount(id: string, nodes: InterlinkedNode[], edges: Interlinke
 }
 
 function getStarSize(charCount: number): number {
-  if (charCount >= 75) return 16
-  if (charCount >= 50) return 15
-  if (charCount >= 40) return 12
-  return 10
+  if (charCount >= 75) return 19
+  if (charCount >= 50) return 17
+  if (charCount >= 40) return 16
+  return 13
 }
 
 // ─── Shared styles ────────────────────────────────────────────────────────────
